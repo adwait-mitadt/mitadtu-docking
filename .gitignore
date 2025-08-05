@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.log
+*.sqlite3
+*.db
+*.pkl
+*.h5
+*.ipynb_checkpoints/
+.env
+.venv
+venv/
+ENV/
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Poetry
+poetry.lock
+uv.lock
+
+# Exclude data directory
+data/
