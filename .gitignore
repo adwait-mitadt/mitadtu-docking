@@ -30,3 +30,7 @@ uv.lock
 
 # Exclude data directory
 data/
+
+
+#Ignore vscode AI rules
+.github/copilot-instructions.md
