@@ -31,6 +31,16 @@ uv.lock
 # Exclude data directory
 data/
 
+# Generated GIF files
+*.gif
+final_approach*.gif
+enhanced_*.gif
+
+# Generated CSV files (sequence info and analysis)
+*sequence_info.csv
+gif_sequence_info.csv
+enhanced_gif_sequence_info.csv
+distance_progression.png
 
 #Ignore vscode AI rules
 .github/copilot-instructions.md
