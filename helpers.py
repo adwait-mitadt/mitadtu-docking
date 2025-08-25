@@ -14,6 +14,16 @@ inputs_directory_path = data_path / "train"
 target_data = pd.read_csv(target_path)
 
 
+def load_image(image_id):
+    """
+    Load an image from the input directory.
+    """
+    # Load an input image
+    input_image_path = inputs_directory_path / f"{image_id}.jpg"
+    input_image = plt.imread(input_image_path)
+    return input_image
+
+
 def plot_image_with_distance_crosshair(image_id):
     """
     This function plots an image of the ISS from the input data and adds a crosshair at
@@ -24,8 +34,7 @@ def plot_image_with_distance_crosshair(image_id):
         image_id: the inage id to be plotted
     """
     # Load an input image
-    input_image_path = inputs_directory_path / f"{image_id}.jpg"
-    input_image = plt.imread(input_image_path)
+    input_image = load_image(image_id)
 
     # Get the corresponding target data
     target_data_row = target_data[target_data["ImageID"] == image_id]
