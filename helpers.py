@@ -1,8 +1,10 @@
-# Imports for data exploration
+# ISS Docking Analysis Helper Functions
+# Simple, fast helper function for ISS docking image analysis
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
+import ast
 from pathlib import Path
 
 # Setting paths using pathlib
@@ -14,127 +16,116 @@ inputs_directory_path = data_path / "train"
 target_data = pd.read_csv(target_path)
 
 
-def load_data(image_id, return_format='both'):
+def show_image(image_id):
     """
-    Load image and/or target data for a specific image ID.
+    SUPER SIMPLE ALL-IN-ONE FUNCTION - Just call show_image(image_id) and get everything!
     
     Args:
-        image_id: The ID of the image to load
-        return_format: What to return - 'image', 'target', or 'both' (default)
+        image_id: The ID of the image to display (integer)
         
     Returns:
-        - If return_format='image': numpy.ndarray (the loaded image)
-        - If return_format='target': dict with keys 'distance', 'location', 'x', 'y' or None
-        - If return_format='both': tuple (image, target_data) or (None, None) if not found
-    """
-    image = None
-    target = None
-    
-    # Load image if needed
-    if return_format in ['image', 'both']:
-        try:
-            input_image_path = inputs_directory_path / f"{image_id}.jpg"
-            image = plt.imread(input_image_path)
-        except FileNotFoundError:
-            if return_format == 'image':
-                print(f"Image with ID {image_id} not found.")
-                return None
-            elif return_format == 'both':
-                print(f"Image with ID {image_id} not found.")
-                return None, None
-    
-    # Load target data if needed
-    if return_format in ['target', 'both']:
-        # Get the corresponding target data
-        target_data_row = target_data[target_data["ImageID"] == image_id]
+        dict: Complete data about the image
         
-        if not target_data_row.empty:
-            # Extract data
-            distance = target_data_row["distance"].values[0]
-            location = target_data_row["location"].values[0]
+    Usage Examples:
+        show_image(0)     # Shows image 0 with all data
+        show_image(100)   # Shows image 100 with all data
+        show_image(1500)  # Shows image 1500 with all data
+    """
+    print(f"🚀 ANALYZING IMAGE {image_id}")
+    print("="*50)
+    
+    try:
+        # Load image
+        image_file = inputs_directory_path / f"{image_id}.jpg"
+        image = plt.imread(image_file)
+        
+        # Get data from CSV
+        row = target_data[target_data["ImageID"] == image_id]
+        if row.empty:
+            print(f"❌ No data found for Image ID: {image_id}")
+            return None
             
-            # Parse the location string to extract x, y coordinates
-            if isinstance(location, str):
-                # Remove brackets and split by comma
-                location_coords = location.strip("[]").split(", ")
-                x, y = int(location_coords[0]), int(location_coords[1])
-            else:
-                # If it's already a list
-                x, y = location[0], location[1]
-            
-            target = {
-                'distance': distance,
-                'location': location,
-                'x': x,
-                'y': y
-            }
+        row = row.iloc[0]  # Get first (and only) row
+        distance = row["distance"]
+        location = ast.literal_eval(row["location"])
+        x, y = location[0], location[1]
+        
+        # Print comprehensive info
+        print(f"📷 Image ID: {image_id}")
+        print(f"📏 Distance: {distance}m") 
+        print(f"🎯 Target: ({x}, {y})")
+        
+        # Determine phase
+        if distance < 100:
+            phase = "🔴 FINAL DOCKING"
+        elif distance < 200:
+            phase = "🟡 FINAL APPROACH" 
+        elif distance < 400:
+            phase = "🟢 APPROACH"
         else:
-            if return_format == 'target':
-                return None
-            elif return_format == 'both':
-                print(f"Target data for image ID {image_id} not found.")
-                return None, None
-    
-    # Return based on format
-    if return_format == 'image':
-        return image
-    elif return_format == 'target':
-        return target
-    else:  # 'both'
-        return image, target
+            phase = "🔵 LONG RANGE"
+        print(f"🚀 Phase: {phase}")
+        print("="*50)
+        
+        # Show image with crosshair
+        plt.figure(figsize=(10, 8))
+        plt.imshow(image)
+        
+        # Draw crosshair
+        size = 25
+        plt.plot([x-size, x+size], [y, y], 'r-', linewidth=3, label='Target')
+        plt.plot([x, x], [y-size, y+size], 'r-', linewidth=3)
+        plt.scatter(x, y, color='red', s=100, marker='o', edgecolors='white', linewidth=2)
+        
+        # Title and labels
+        plt.title(f'ISS Docking | Image {image_id} | Distance: {distance}m | Target: ({x}, {y}) | {phase}')
+        plt.xlabel('X Coordinate (pixels)')
+        plt.ylabel('Y Coordinate (pixels)')
+        plt.grid(True, alpha=0.3)
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+        
+        print("✅ Analysis complete!")
+        
+        # Return structured data
+        return {
+            'id': image_id, 
+            'distance': distance, 
+            'x': x, 
+            'y': y,
+            'phase': phase
+        }
+        
+    except FileNotFoundError:
+        print(f"❌ Image file not found for ID: {image_id}")
+        return None
+    except Exception as e:
+        print(f"❌ Error: {str(e)}")
+        return None
 
 
-def plot_image_with_distance_crosshair(image_id):
-    """
-    This function plots an image of the ISS from the input data and adds a crosshair at
-    the dock based on the target value.
-    The crosshair is colored based on the distance from the target data for the image.
+def help_show_image():
+    """Print usage instructions for show_image function"""
+    print("🚀 ISS DOCKING IMAGE ANALYZER")
+    print("="*50)
+    print("Usage: show_image(image_id)")
+    print()
+    print("Examples:")
+    print("  show_image(0)      # Analyze image 0")
+    print("  show_image(100)    # Analyze image 100")
+    print("  show_image(1500)   # Analyze image 1500")
+    print()
+    print("Features:")
+    print("  ✅ Displays image with crosshair")
+    print("  ✅ Prints all target data")
+    print("  ✅ Shows approach phase")
+    print("  ✅ Returns structured data")
+    print("  ✅ Super fast execution")
+    print()
+    print("Just call: show_image(any_image_id)")
 
-    Args:
-        image_id: the image id to be plotted
-    """
-    # Load image and target data using the consolidated helper function
-    input_image, target = load_data(image_id, return_format='both')
-    
-    if input_image is None or target is None:
-        print(f"Could not load image or target data for image ID {image_id}")
-        return
 
-    # Extract data from target dictionary
-    x, y = target['x'], target['y']
-    distance = target['distance']
-
-    # Create a colormap based on distance
-    # Get min and max distances for normalization
-    min_distance = target_data["distance"].min()
-    max_distance = target_data["distance"].max()
-
-    # Normalize distance to 0-1 range for colormap
-    normalized_distance = (distance - min_distance) / (max_distance - min_distance)
-
-    # Create figure with colorbar
-    fig, ax = plt.subplots(figsize=(10, 8))
-    ax.imshow(input_image)
-
-    # Create scatter plot with color based on distance
-    scatter = ax.scatter(
-        [x],
-        [y],
-        c=[distance],
-        cmap="viridis",
-        s=300,
-        marker="x",
-        vmin=min_distance,
-        vmax=max_distance,
-        edgecolors="white",
-        linewidths=2,
-    )
-
-    # Add colorbar
-    cbar = plt.colorbar(scatter, ax=ax, shrink=0.8)
-    cbar.set_label("Distance", rotation=270, labelpad=20, fontsize=12)
-
-    ax.set_title(f"Image {image_id} - Target Location: ({x}, {y}) - Distance: {distance}", fontsize=14)
-    ax.axis("off")
-    plt.tight_layout()
-    plt.show()
+if __name__ == "__main__":
+    print("ISS Docking Analysis Helper Functions loaded!")
+    print("Use show_image(image_id) to analyze any image.")
