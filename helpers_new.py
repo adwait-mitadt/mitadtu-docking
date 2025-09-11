@@ -16,6 +16,67 @@ inputs_directory_path = data_path / "train"
 target_data = pd.read_csv(target_path)
 
 
+def load_image(image_id):
+    """
+    Load and return the image for given image_id
+    
+    Args:
+        image_id: The ID of the image to load (integer)
+        
+    Returns:
+        numpy.ndarray: The loaded image array
+    """
+    image_file = inputs_directory_path / f"{image_id}.jpg"
+    return plt.imread(image_file)
+
+
+def load_target_row(image_id):
+    """
+    Load and return the target data row for given image_id
+    
+    Args:
+        image_id: The ID of the image (integer)
+        
+    Returns:
+        pandas.Series: The row containing target data for the image
+    """
+    row = target_data[target_data["ImageID"] == image_id]
+    return row.iloc[0] if not row.empty else None
+
+
+def load_coordinates(image_id):
+    """
+    Load and return the x, y coordinates for given image_id
+    
+    Args:
+        image_id: The ID of the image (integer)
+        
+    Returns:
+        tuple: (x, y) coordinates as floats
+    """
+    row = target_data[target_data["ImageID"] == image_id]
+    if row.empty:
+        return None
+    location = ast.literal_eval(row.iloc[0]["location"])
+    return location[0], location[1]
+
+
+def load_distance(image_id):
+    """
+    Load and return the distance for given image_id
+    
+    Args:
+        image_id: The ID of the image (integer)
+        
+    Returns:
+        float: The distance value
+    """
+    row = target_data[target_data["ImageID"] == image_id]
+    if row.empty:
+        return None
+    return row.iloc[0]["distance"]
+
+
 def show_image(image_id):
     """
     SUPER SIMPLE ALL-IN-ONE FUNCTION - Just call show_image(image_id) and get everything!
