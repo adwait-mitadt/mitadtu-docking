@@ -26,7 +26,6 @@ Thumbs.db
 
 # Poetry
 poetry.lock
-uv.lock
 
 # Exclude data directory
 data/
