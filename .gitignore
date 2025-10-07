@@ -30,6 +30,7 @@ uv.lock
 
 # Exclude data directory
 data/train
+data/processed
 data/processed/images/
 data/processed/metadata/
 
