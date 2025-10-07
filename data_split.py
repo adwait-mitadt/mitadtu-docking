@@ -295,7 +295,7 @@ def create_training_datasets(data_dir="data", image_dir="data/train", batch_size
             image = tf.cast(image, tf.float32) / 255.0
             
             # Normalize coordinates to [0, 1] range
-            coords_normalized = coords / [img_size, img_size]
+            coords_normalized = coords / tf.cast([img_size, img_size], tf.float32)
             
             return image, coords_normalized
         
