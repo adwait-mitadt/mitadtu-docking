@@ -1,9 +1,10 @@
 # ISS Docking Analysis Helper Functions
-# Simple, fast helper function for ISS docking image analysis
+# Helper functions for ISS docking image analysis and preprocessing
 
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import cv2
 import ast
 from pathlib import Path
 
@@ -79,13 +80,13 @@ def load_distance(image_id):
 
 def show_image(image_id):
     """
-    SUPER SIMPLE ALL-IN-ONE FUNCTION - Just call show_image(image_id) and get everything!
+    Display an ISS docking image with target crosshair and complete metadata.
     
     Args:
-        image_id: The ID of the image to display (integer)
+        image_id (int): The ID of the image to display
         
     Returns:
-        dict: Complete data about the image
+        dict: Complete data about the image (id, distance, x, y, phase)
         
     Usage Examples:
         show_image(0)     # Shows image 0 with all data
@@ -146,7 +147,6 @@ def show_image(image_id):
         
         print("✅ Analysis complete!")
         
-        # Return structured data
         return {
             'id': image_id, 
             'distance': distance, 
@@ -163,27 +163,389 @@ def show_image(image_id):
         return None
 
 
-def help_show_image():
-    """Print usage instructions for show_image function"""
-    print("🚀 ISS DOCKING IMAGE ANALYZER")
-    print("="*50)
-    print("Usage: show_image(image_id)")
-    print()
-    print("Examples:")
-    print("  show_image(0)      # Analyze image 0")
-    print("  show_image(100)    # Analyze image 100")
-    print("  show_image(1500)   # Analyze image 1500")
-    print()
-    print("Features:")
-    print("  ✅ Displays image with crosshair")
-    print("  ✅ Prints all target data")
-    print("  ✅ Shows approach phase")
-    print("  ✅ Returns structured data")
-    print("  ✅ Super fast execution")
-    print()
-    print("Just call: show_image(any_image_id)")
+# Alias for backward compatibility
+plot_image_with_distance_crosshair = show_image
+
+
+def load_image(image_path, convert_to_rgb=True):
+    """
+    Load an image from file path using OpenCV.
+    
+    Args:
+        image_path (str): Path to the image file
+        convert_to_rgb (bool): Convert from BGR to RGB (default: True)
+        
+    Returns:
+        numpy.ndarray: Loaded image array, or None if loading fails
+    """
+    try:
+        image = cv2.imread(image_path)
+        if image is not None and convert_to_rgb:
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        return image
+    except Exception as e:
+        print(f"Error loading image {image_path}: {e}")
+        return None
+
+
+def resize_image(image_array, width, height):
+    """
+    Resize an image array to specified dimensions using OpenCV.
+    
+    Args:
+        image_array (numpy.ndarray): The input image array to resize
+        width (int): Target width in pixels
+        height (int): Target height in pixels
+        
+    Returns:
+        numpy.ndarray: Resized image array, or None if input is invalid
+    """
+    try:
+        if image_array is not None:
+            return cv2.resize(image_array, (width, height))
+        else:
+            print("Input image array is None")
+            return None
+    except Exception as e:
+        print(f"Error resizing image: {e}")
+        return None
+
+
+def normalize_image(image_array, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
+    """
+    Normalize image using ImageNet statistics or custom mean/std values.
+    
+    Args:
+        image_array (numpy.ndarray): Image array with values in [0, 255] or [0, 1]
+        mean (list): Mean values for R, G, B channels (default: ImageNet mean)
+        std (list): Standard deviation values for R, G, B channels (default: ImageNet std)
+        
+    Returns:
+        numpy.ndarray: Normalized image array
+        
+    Note:
+        - If image is in [0, 255], it will first be scaled to [0, 1]
+        - Then normalized using: (image - mean) / std
+        - Default values are ImageNet normalization statistics
+    """
+    try:
+        # Convert to float and ensure values are in [0, 1]
+        if image_array.max() > 1.0:
+            image_array = image_array / 255.0
+        
+        # Convert mean and std to numpy arrays
+        mean = np.array(mean, dtype=np.float32)
+        std = np.array(std, dtype=np.float32)
+        
+        # Normalize: (image - mean) / std
+        normalized_image = (image_array - mean) / std
+        
+        return normalized_image.astype(np.float32)
+    except Exception as e:
+        print(f"Error normalizing image: {e}")
+        return None
+
+
+def display_image(image_array, title=None, figsize=(6, 6)):
+    """
+    Display an image array using matplotlib.
+    
+    Args:
+        image_array (numpy.ndarray): The image array to display
+        title (str): Optional title for the image
+        figsize (tuple): Figure size (width, height) in inches
+    """
+    plt.figure(figsize=figsize)
+    plt.imshow(image_array)
+    if title:
+        plt.title(title)
+    plt.axis('off')
+    plt.show()
+
+
+def load_and_preprocess_images(csv_file, image_folder, target_size=(224, 224), 
+                               normalize=True, mean=[0.485, 0.456, 0.406], 
+                               std=[0.229, 0.224, 0.225]):
+    """
+    Load, resize, and optionally normalize images from CSV file.
+    
+    Args:
+        csv_file (str): Path to CSV file containing ImageIDs
+        image_folder (str): Folder containing the images
+        target_size (tuple): Target size for resizing (width, height)
+        normalize (bool): Whether to normalize images (default: True)
+        mean (list): Mean values for normalization (default: ImageNet mean)
+        std (list): Standard deviation for normalization (default: ImageNet std)
+        
+    Returns:
+        tuple: (images_array, locations_array, distances_array, image_ids)
+    """
+    # Load the CSV
+    data = pd.read_csv(csv_file)
+    
+    images = []
+    locations = []
+    distances = []
+    image_ids = []
+    failed_loads = []
+    
+    print(f"Loading and preprocessing {len(data)} images from {csv_file}...")
+    
+    for idx, row in data.iterrows():
+        image_id = row['ImageID']
+        image_path = f"{image_folder}/{image_id}.jpg"
+        
+        # Load image
+        image = load_image(image_path, convert_to_rgb=True)
+        
+        if image is not None:
+            # Resize to target size
+            resized_image = resize_image(image, target_size[0], target_size[1])
+            
+            # Normalize if requested
+            if normalize:
+                processed_image = normalize_image(resized_image, mean=mean, std=std)
+            else:
+                # Just scale to [0, 1] if not normalizing
+                processed_image = resized_image / 255.0 if resized_image.max() > 1 else resized_image
+            
+            images.append(processed_image)
+            image_ids.append(image_id)
+            
+            # Parse location data
+            location = row['location']
+            if isinstance(location, str):
+                location = ast.literal_eval(location)
+            locations.append(location)
+            
+            # Store distance
+            distances.append(row['distance'])
+        else:
+            failed_loads.append(image_id)
+            print(f"Warning: Could not load image {image_id}")
+        
+        # Progress indicator
+        if (idx + 1) % 1000 == 0:
+            print(f"  Processed {idx + 1}/{len(data)} images...")
+    
+    print(f"\n✓ Successfully loaded {len(images)} images")
+    if failed_loads:
+        print(f"✗ Failed to load {len(failed_loads)} images: {failed_loads[:10]}...")
+    
+    return (
+        np.array(images, dtype=np.float32), 
+        np.array(locations), 
+        np.array(distances), 
+        np.array(image_ids)
+    )
+
+
+def process_and_save_image(image_id, image_path, coords, output_folder="data/processed/images",
+                          target_size=(224, 224), normalize=True,
+                          mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
+    """
+    Load, preprocess (resize & normalize), and save a single image with its metadata.
+    
+    Args:
+        image_id (int/str): Unique identifier for the image
+        image_path (str): Path to the original image
+        coords (tuple): (x, y) coordinates of the docking target
+        output_folder (str): Folder to save processed images
+        target_size (tuple): Target size (width, height) for resizing
+        normalize (bool): Whether to normalize the image
+        mean (list): Mean values for normalization (RGB channels)
+        std (list): Standard deviation for normalization (RGB channels)
+    
+    Returns:
+        dict: Metadata about the processed image
+    """
+    from pathlib import Path
+    
+    # Create output folder if it doesn't exist
+    output_path = Path(output_folder)
+    output_path.mkdir(parents=True, exist_ok=True)
+    
+    # Load image
+    image = load_image(image_path, convert_to_rgb=True)
+    
+    if image is None:
+        print(f"❌ Failed to load image: {image_path}")
+        return None
+    
+    original_size = image.shape[:2]  # (height, width)
+    
+    # Resize image
+    resized_image = resize_image(image, target_size[0], target_size[1])
+    
+    # Normalize if requested
+    if normalize:
+        processed_image = normalize_image(resized_image, mean=mean, std=std)
+    else:
+        # Just scale to [0, 1]
+        processed_image = resized_image / 255.0 if resized_image.max() > 1 else resized_image
+    
+    # Calculate scaled coordinates
+    scale_x = target_size[0] / original_size[1]  # width scale
+    scale_y = target_size[1] / original_size[0]  # height scale
+    scaled_coords = (int(coords[0] * scale_x), int(coords[1] * scale_y))
+    
+    # Save processed image as .npy file for fast loading
+    save_path = output_path / f"{image_id}.npy"
+    np.save(save_path, processed_image)
+    
+    # Create metadata
+    metadata = {
+        'image_id': image_id,
+        'original_size': original_size,
+        'processed_size': target_size,
+        'original_coords': coords,
+        'scaled_coords': scaled_coords,
+        'normalized': normalize,
+        'save_path': str(save_path)
+    }
+    
+    return metadata
+
+
+def batch_process_and_save_images(csv_file, image_folder, output_folder="data/processed/images",
+                                  metadata_file="data/processed/metadata/metadata.csv",
+                                  target_size=(224, 224), normalize=True,
+                                  mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
+    """
+    Batch process all images from CSV and save them to the processed folder.
+    
+    Args:
+        csv_file (str): Path to CSV file with columns: filename, x, y
+        image_folder (str): Folder containing original images
+        output_folder (str): Folder to save processed images
+        metadata_file (str): Path to save metadata CSV
+        target_size (tuple): Target size (width, height) for resizing
+        normalize (bool): Whether to normalize images
+        mean (list): Mean values for normalization
+        std (list): Standard deviation for normalization
+    
+    Returns:
+        pd.DataFrame: Metadata for all processed images
+    """
+    from pathlib import Path
+    
+    # Load CSV
+    data = pd.read_csv(csv_file)
+    
+    # Create output folders
+    output_path = Path(output_folder)
+    output_path.mkdir(parents=True, exist_ok=True)
+    
+    metadata_path = Path(metadata_file)
+    metadata_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    metadata_list = []
+    successful = 0
+    failed = 0
+    
+    print(f"🚀 Processing {len(data)} images...")
+    print(f"   Input: {image_folder}")
+    print(f"   Output: {output_folder}")
+    print(f"   Target size: {target_size}")
+    print(f"   Normalize: {normalize}")
+    print("="*60)
+    
+    for idx, row in data.iterrows():
+        # Extract image ID from filename (remove .jpg extension)
+        filename = row['filename']
+        image_id = filename.replace('.jpg', '')
+        
+        # Get coordinates
+        coords = (row['x'], row['y'])
+        
+        # Full path to original image
+        image_path = f"{image_folder}/{filename}"
+        
+        # Process and save
+        metadata = process_and_save_image(
+            image_id=image_id,
+            image_path=image_path,
+            coords=coords,
+            output_folder=output_folder,
+            target_size=target_size,
+            normalize=normalize,
+            mean=mean,
+            std=std
+        )
+        
+        if metadata:
+            metadata_list.append(metadata)
+            successful += 1
+            
+            if (successful) % 500 == 0:
+                print(f"   ✅ Processed {successful} images...")
+        else:
+            failed += 1
+    
+    print("="*60)
+    print(f"✅ Successfully processed: {successful} images")
+    print(f"❌ Failed: {failed} images")
+    
+    # Save metadata to CSV
+    metadata_df = pd.DataFrame(metadata_list)
+    metadata_df.to_csv(metadata_file, index=False)
+    print(f"📊 Metadata saved to: {metadata_file}")
+    
+    return metadata_df
+
+
+def load_processed_images(metadata_file="data/processed/metadata/metadata.csv", 
+                         max_images=None):
+    """
+    Load preprocessed images from the processed folder for direct model training.
+    
+    Args:
+        metadata_file (str): Path to metadata CSV file
+        max_images (int): Maximum number of images to load (None = all)
+    
+    Returns:
+        tuple: (images_array, coordinates_array, metadata_df)
+            - images_array: np.array of shape (N, H, W, 3)
+            - coordinates_array: np.array of shape (N, 2) with (x, y) coords
+            - metadata_df: DataFrame with all metadata
+    """
+    from pathlib import Path
+    
+    # Load metadata
+    metadata_df = pd.read_csv(metadata_file)
+    
+    if max_images:
+        metadata_df = metadata_df.head(max_images)
+    
+    images = []
+    coordinates = []
+    
+    print(f"📂 Loading {len(metadata_df)} processed images...")
+    
+    for idx, row in metadata_df.iterrows():
+        # Load preprocessed image
+        image_path = row['save_path']
+        image = np.load(image_path)
+        images.append(image)
+        
+        # Extract scaled coordinates
+        coords = ast.literal_eval(row['scaled_coords'])
+        coordinates.append(coords)
+        
+        if (idx + 1) % 500 == 0:
+            print(f"   Loaded {idx + 1} images...")
+    
+    images_array = np.array(images)
+    coordinates_array = np.array(coordinates)
+    
+    print(f"✅ Loaded {len(images_array)} images")
+    print(f"   Image shape: {images_array.shape}")
+    print(f"   Coordinates shape: {coordinates_array.shape}")
+    
+    return images_array, coordinates_array, metadata_df
 
 
 if __name__ == "__main__":
     print("ISS Docking Analysis Helper Functions loaded!")
     print("Use show_image(image_id) to analyze any image.")
+

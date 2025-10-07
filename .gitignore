@@ -29,7 +29,10 @@ poetry.lock
 uv.lock
 
 # Exclude data directory
-data/
+data/train
+data/processed
+data/processed/images/
+data/processed/metadata/
 
 # Generated GIF files
 *.gif
