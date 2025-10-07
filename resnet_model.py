@@ -1,7 +1,8 @@
-import tensorflow as tf
-from tensorflow.keras.applications import ResNet50
-from tensorflow.keras.layers import GlobalAveragePooling2D, Dense, Dropout, Input
-from tensorflow.keras.models import Model
+
+import keras
+from keras.applications import ResNet50
+from keras.layers import GlobalAveragePooling2D, Dense, Dropout, Input
+from keras.models import Model
 
 def build_resnet_regression():
 	input_shape = (224, 224, 3)
@@ -15,7 +16,7 @@ def build_resnet_regression():
 	outputs = Dense(2, activation="linear")(x)  # Regression output: x, y
 
 	model = Model(inputs=base_model.input, outputs=outputs)
-	optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4)
+	optimizer = keras.optimizers.Adam(learning_rate=1e-4)
 	model.compile(optimizer=optimizer, loss="mse", metrics=["mae"])
 	return model
 
