@@ -545,7 +545,246 @@ def load_processed_images(metadata_file="data/processed/metadata/metadata.csv",
     return images_array, coordinates_array, metadata_df
 
 
+# =============================================
+# TENSORFLOW/KERAS MODEL FUNCTIONS
+# =============================================
+
+def build_resnet_regression():
+    """
+    Build ResNet50-based regression model for coordinate prediction.
+    
+    Returns:
+        tensorflow.keras.Model: Compiled ResNet model for (x,y) coordinate prediction
+    """
+    try:
+        import tensorflow as tf
+        from tensorflow.keras.applications import ResNet50
+        from tensorflow.keras.layers import GlobalAveragePooling2D, Dense, Dropout
+        from tensorflow.keras.models import Model
+        
+        print("🤖 Building ResNet50 regression model...")
+        
+        input_shape = (224, 224, 3)
+        base_model = ResNet50(weights="imagenet", include_top=False, input_shape=input_shape)
+        base_model.trainable = False  # Freeze all layers
+
+        x = base_model.output
+        x = GlobalAveragePooling2D()(x)
+        x = Dense(256, activation="relu")(x)
+        x = Dropout(0.5)(x)
+        outputs = Dense(2, activation="linear")(x)  # Regression output: x, y
+
+        model = Model(inputs=base_model.input, outputs=outputs)
+        optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4)
+        model.compile(optimizer=optimizer, loss="mse", metrics=["mae"])
+        
+        print("✅ ResNet50 model built successfully!")
+        return model
+        
+    except ImportError:
+        print("❌ TensorFlow not found. Please install: pip install tensorflow")
+        return None
+    except Exception as e:
+        print(f"❌ Error building model: {e}")
+        return None
+
+def create_data_generators(train_df, val_df, image_folder, batch_size=32, target_size=(224, 224)):
+    """
+    Create data generators for training and validation.
+    
+    Args:
+        train_df (pd.DataFrame): Training dataframe with filename, x, y columns
+        val_df (pd.DataFrame): Validation dataframe with filename, x, y columns
+        image_folder (str): Path to folder containing images
+        batch_size (int): Batch size for training
+        target_size (tuple): Target image size (width, height)
+    
+    Returns:
+        tuple: (train_generator, val_generator, steps_per_epoch, validation_steps)
+    """
+    try:
+        import tensorflow as tf
+        
+        def preprocess_function(filename, coords):
+            # Load and preprocess image
+            image_path = tf.strings.join([str(image_folder) + "/", filename])
+            image = tf.io.read_file(image_path)
+            image = tf.image.decode_jpeg(image, channels=3)
+            image = tf.image.resize(image, target_size)
+            image = tf.cast(image, tf.float32) / 255.0
+            
+            # Normalize coordinates to [0, 1] range based on image size
+            coords_normalized = coords / [target_size[0], target_size[1]]
+            
+            return image, coords_normalized
+        
+        # Create datasets
+        train_dataset = tf.data.Dataset.from_tensor_slices((
+            train_df['filename'].values,
+            train_df[['x', 'y']].values.astype(np.float32)
+        ))
+        
+        val_dataset = tf.data.Dataset.from_tensor_slices((
+            val_df['filename'].values,
+            val_df[['x', 'y']].values.astype(np.float32)
+        ))
+        
+        # Apply preprocessing and batching
+        train_dataset = train_dataset.map(preprocess_function).batch(batch_size).prefetch(tf.data.AUTOTUNE)
+        val_dataset = val_dataset.map(preprocess_function).batch(batch_size).prefetch(tf.data.AUTOTUNE)
+        
+        steps_per_epoch = len(train_df) // batch_size
+        validation_steps = len(val_df) // batch_size
+        
+        print(f"✅ Data generators created:")
+        print(f"   Training batches: {steps_per_epoch}")
+        print(f"   Validation batches: {validation_steps}")
+        
+        return train_dataset, val_dataset, steps_per_epoch, validation_steps
+        
+    except ImportError:
+        print("❌ TensorFlow not found. Please install: pip install tensorflow")
+        return None, None, 0, 0
+    except Exception as e:
+        print(f"❌ Error creating data generators: {e}")
+        return None, None, 0, 0
+
+
+def create_single_dataset(df, image_folder, batch_size=32, target_size=(224, 224)):
+    """
+    Create a single TensorFlow dataset from DataFrame.
+    
+    Args:
+        df (pd.DataFrame): Dataframe with filename, x, y columns
+        image_folder (str): Path to folder containing images
+        batch_size (int): Batch size
+        target_size (tuple): Target image size (width, height)
+    
+    Returns:
+        tf.data.Dataset: Preprocessed TensorFlow dataset
+    """
+    try:
+        import tensorflow as tf
+        
+        def preprocess_function(filename, coords):
+            # Load and preprocess image
+            image_path = tf.strings.join([str(image_folder) + "/", filename])
+            image = tf.io.read_file(image_path)
+            image = tf.image.decode_jpeg(image, channels=3)
+            image = tf.image.resize(image, target_size)
+            image = tf.cast(image, tf.float32) / 255.0
+            
+            # Normalize coordinates to [0, 1] range based on image size
+            coords_normalized = coords / [target_size[0], target_size[1]]
+            
+            return image, coords_normalized
+        
+        # Create dataset
+        dataset = tf.data.Dataset.from_tensor_slices((
+            df['filename'].values,
+            df[['x', 'y']].values.astype(np.float32)
+        ))
+        
+        # Apply preprocessing and batching
+        dataset = dataset.map(preprocess_function).batch(batch_size).prefetch(tf.data.AUTOTUNE)
+        
+        return dataset
+        
+    except ImportError:
+        print("❌ TensorFlow not found. Please install: pip install tensorflow")
+        return None
+    except Exception as e:
+        print(f"❌ Error creating dataset: {e}")
+        return None
+
+def train_model(model, train_generator, val_generator, steps_per_epoch, validation_steps, epochs=50):
+    """
+    Train the model with the given data generators.
+    
+    Args:
+        model: Compiled Keras model
+        train_generator: Training data generator
+        val_generator: Validation data generator
+        steps_per_epoch (int): Steps per training epoch
+        validation_steps (int): Steps per validation epoch
+        epochs (int): Number of training epochs
+    
+    Returns:
+        tensorflow.keras.callbacks.History: Training history
+    """
+    try:
+        import tensorflow as tf
+        
+        print(f"🚀 Starting training for {epochs} epochs...")
+        
+        # Define callbacks
+        callbacks = [
+            tf.keras.callbacks.EarlyStopping(patience=10, restore_best_weights=True),
+            tf.keras.callbacks.ReduceLROnPlateau(factor=0.5, patience=5),
+            tf.keras.callbacks.ModelCheckpoint('best_model.h5', save_best_only=True)
+        ]
+        
+        # Train the model
+        history = model.fit(
+            train_generator,
+            steps_per_epoch=steps_per_epoch,
+            epochs=epochs,
+            validation_data=val_generator,
+            validation_steps=validation_steps,
+            callbacks=callbacks,
+            verbose=1
+        )
+        
+        print("✅ Training completed!")
+        return history
+        
+    except Exception as e:
+        print(f"❌ Error during training: {e}")
+        return None
+
+def plot_training_history(history):
+    """
+    Plot training and validation loss curves.
+    
+    Args:
+        history: Keras training history object
+    """
+    try:
+        import matplotlib.pyplot as plt
+        
+        plt.figure(figsize=(12, 4))
+        
+        # Plot loss
+        plt.subplot(1, 2, 1)
+        plt.plot(history.history['loss'], label='Training Loss')
+        plt.plot(history.history['val_loss'], label='Validation Loss')
+        plt.title('Model Loss')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.legend()
+        
+        # Plot MAE
+        plt.subplot(1, 2, 2)
+        plt.plot(history.history['mae'], label='Training MAE')
+        plt.plot(history.history['val_mae'], label='Validation MAE')
+        plt.title('Model MAE')
+        plt.xlabel('Epoch')
+        plt.ylabel('MAE')
+        plt.legend()
+        
+        plt.tight_layout()
+        plt.show()
+        
+        print("📊 Training plots displayed!")
+        
+    except Exception as e:
+        print(f"❌ Error plotting history: {e}")
+
+
 if __name__ == "__main__":
-    print("ISS Docking Analysis Helper Functions loaded!")
-    print("Use show_image(image_id) to analyze any image.")
+    print("🚀 ISS Docking Analysis & ML Helper Functions loaded!")
+    print("Available functions:")
+    print("  📸 Image Analysis: show_image(), load_image(), etc.")
+    print("  🔧 Preprocessing: process_and_save_image(), batch_process_and_save_images(), etc.")
+    print("  🤖 ML Training: build_resnet_regression(), train_model(), etc.")
 
