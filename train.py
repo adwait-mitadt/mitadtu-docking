@@ -1,4 +1,4 @@
-"""
+﻿"""
 ISS Docking Vision Training Script
 Train ResNet50 model for ISS docking position regression
 """
@@ -15,7 +15,7 @@ from data_split import create_training_datasets
 
 # ==================== CONFIGURATION ====================
 BATCH_SIZE = 32
-EPOCHS = 5
+EPOCHS = 20
 LEARNING_RATE = 1e-4
 IMG_SIZE = 224 
 IMAGE_DIR = "data/train"
@@ -43,7 +43,8 @@ def main():
         validation_data=val_ds,
         callbacks=[
             tf.keras.callbacks.ModelCheckpoint(MODEL_SAVE_PATH, save_best_only=True),
-            tf.keras.callbacks.EarlyStopping(patience=3, restore_best_weights=True)
+            tf.keras.callbacks.EarlyStopping(patience=3, restore_best_weights=True),
+            tf.keras.callbacks.CSVLogger("logs/training_history.csv", append=False)
         ]
     )
     
@@ -51,6 +52,7 @@ def main():
     test_loss, test_mae = model.evaluate(test_ds)
     print(f"✅ Test MSE: {test_loss:.4f}, MAE: {test_mae:.4f}")
     print(f"💾 Model saved: {MODEL_SAVE_PATH}")
+    print(f"📊 Training history saved: logs/training_history.csv")
 
 
 if __name__ == "__main__":
