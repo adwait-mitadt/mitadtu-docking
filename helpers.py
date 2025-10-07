@@ -17,6 +17,67 @@ inputs_directory_path = data_path / "train"
 target_data = pd.read_csv(target_path)
 
 
+def load_image(image_id):
+    """
+    Load and return the image for given image_id
+    
+    Args:
+        image_id: The ID of the image to load (integer)
+        
+    Returns:
+        numpy.ndarray: The loaded image array
+    """
+    image_file = inputs_directory_path / f"{image_id}.jpg"
+    return plt.imread(image_file)
+
+
+def load_target_row(image_id):
+    """
+    Load and return the target data row for given image_id
+    
+    Args:
+        image_id: The ID of the image (integer)
+        
+    Returns:
+        pandas.Series: The row containing target data for the image
+    """
+    row = target_data[target_data["ImageID"] == image_id]
+    return row.iloc[0] if not row.empty else None
+
+
+def load_coordinates(image_id):
+    """
+    Load and return the x, y coordinates for given image_id
+    
+    Args:
+        image_id: The ID of the image (integer)
+        
+    Returns:
+        tuple: (x, y) coordinates as floats
+    """
+    row = load_target_row(image_id)
+    if row is None:
+        return None
+    location = ast.literal_eval(row["location"])
+    return location[0], location[1]
+
+
+def load_distance(image_id):
+    """
+    Load and return the distance for given image_id
+    
+    Args:
+        image_id: The ID of the image (integer)
+        
+    Returns:
+        float: The distance value
+    """
+    row = load_target_row(image_id)
+    if row is None:
+        return None
+    return row["distance"]
+
+
 def show_image(image_id):
     """
     Display an ISS docking image with target crosshair and complete metadata.
@@ -36,20 +97,17 @@ def show_image(image_id):
     print("="*50)
     
     try:
-        # Load image
-        image_file = inputs_directory_path / f"{image_id}.jpg"
-        image = plt.imread(image_file)
+        # Use helper functions to get all data
+        image = load_image(image_id)
+        row = load_target_row(image_id)
         
-        # Get data from CSV
-        row = target_data[target_data["ImageID"] == image_id]
-        if row.empty:
+        if row is None:
             print(f"❌ No data found for Image ID: {image_id}")
             return None
-            
-        row = row.iloc[0]
-        distance = row["distance"]
-        location = ast.literal_eval(row["location"])
-        x, y = location[0], location[1]
+        
+        # Use helper functions for coordinates and distance
+        x, y = load_coordinates(image_id)
+        distance = load_distance(image_id)
         
         # Print comprehensive info
         print(f"📷 Image ID: {image_id}")
