@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 import cv2
 import ast
 from pathlib import Path
+from sklearn.preprocessing import MinMaxScaler
+import pickle
 
 # Setting paths using pathlib
 data_path = Path("data/")
@@ -548,4 +550,180 @@ def load_processed_images(metadata_file="data/processed/metadata/metadata.csv",
 if __name__ == "__main__":
     print("ISS Docking Analysis Helper Functions loaded!")
     print("Use show_image(image_id) to analyze any image.")
+
+
+# ============================================================================
+# OUTPUT NORMALIZATION FUNCTIONS (MinMaxScaler)
+# ============================================================================
+
+def create_output_scaler(outputs, feature_range=(0, 1)):
+    """
+    Create and fit a MinMaxScaler for output normalization.
+    
+    Args:
+        outputs (numpy.ndarray): Output array to fit the scaler on
+                                Shape: (n_samples, n_features) e.g., (N, 3) for [x, y, distance]
+        feature_range (tuple): Desired range of transformed data (default: (0, 1))
+        
+    Returns:
+        MinMaxScaler: Fitted scaler object
+        
+    Example:
+        >>> outputs = np.array([[100, 200, 50.5], [150, 250, 75.2]])
+        >>> scaler = create_output_scaler(outputs)
+    """
+    scaler = MinMaxScaler(feature_range=feature_range)
+    scaler.fit(outputs)
+    return scaler
+
+
+def normalize_outputs(outputs, scaler=None, feature_range=(0, 1)):
+    """
+    Normalize outputs using MinMaxScaler.
+    
+    Args:
+        outputs (numpy.ndarray): Output array to normalize
+                                Shape: (n_samples, n_features) e.g., (N, 3) for [x, y, distance]
+        scaler (MinMaxScaler, optional): Pre-fitted scaler. If None, creates and fits a new one
+        feature_range (tuple): Desired range of transformed data (default: (0, 1))
+        
+    Returns:
+        tuple: (normalized_outputs, scaler)
+            - normalized_outputs (numpy.ndarray): Normalized output array
+            - scaler (MinMaxScaler): The scaler used for normalization
+            
+    Example:
+        >>> outputs = np.array([[100, 200, 50.5], [150, 250, 75.2]])
+        >>> normalized, scaler = normalize_outputs(outputs)
+        >>> print(normalized)
+        [[0. 0. 0.]
+         [1. 1. 1.]]
+    """
+    if scaler is None:
+        scaler = create_output_scaler(outputs, feature_range=feature_range)
+    
+    normalized_outputs = scaler.transform(outputs)
+    return normalized_outputs, scaler
+
+
+def denormalize_outputs(normalized_outputs, scaler):
+    """
+    Denormalize (inverse transform) normalized outputs back to original scale.
+    
+    Args:
+        normalized_outputs (numpy.ndarray): Normalized output array to denormalize
+                                           Shape: (n_samples, n_features) e.g., (N, 3)
+        scaler (MinMaxScaler): The fitted scaler used during normalization
+        
+    Returns:
+        numpy.ndarray: Denormalized outputs in original scale
+        
+    Example:
+        >>> # After training with normalized outputs
+        >>> predictions_normalized = model.predict(X_test)  # shape: (N, 3)
+        >>> predictions_original = denormalize_outputs(predictions_normalized, scaler)
+        >>> print(predictions_original)  # Back to original [x, y, distance] scale
+        
+    Note:
+        - The scaler must be the same one used during normalization
+        - Typically saved during training and loaded during inference
+    """
+    if scaler is None:
+        raise ValueError("Scaler cannot be None. Please provide the fitted scaler used during normalization.")
+    
+    denormalized_outputs = scaler.inverse_transform(normalized_outputs)
+    return denormalized_outputs
+
+
+def save_output_scaler(scaler, filepath='data/output_scaler.pkl'):
+    """
+    Save a fitted MinMaxScaler to disk for later use.
+    
+    Args:
+        scaler (MinMaxScaler): Fitted scaler to save
+        filepath (str): Path where the scaler will be saved (default: 'data/output_scaler.pkl')
+        
+    Returns:
+        str: Path where the scaler was saved
+        
+    Example:
+        >>> scaler = create_output_scaler(train_outputs)
+        >>> save_output_scaler(scaler, 'models/my_scaler.pkl')
+    """
+    filepath = Path(filepath)
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+    
+    with open(filepath, 'wb') as f:
+        pickle.dump(scaler, f)
+    
+    print(f"✅ Scaler saved to: {filepath}")
+    return str(filepath)
+
+
+def load_output_scaler(filepath='data/output_scaler.pkl'):
+    """
+    Load a saved MinMaxScaler from disk.
+    
+    Args:
+        filepath (str): Path to the saved scaler file (default: 'data/output_scaler.pkl')
+        
+    Returns:
+        MinMaxScaler: Loaded scaler object
+        
+    Example:
+        >>> scaler = load_output_scaler('models/my_scaler.pkl')
+        >>> predictions_original = denormalize_outputs(predictions_norm, scaler)
+        
+    Raises:
+        FileNotFoundError: If the scaler file doesn't exist
+    """
+    filepath = Path(filepath)
+    
+    if not filepath.exists():
+        raise FileNotFoundError(f"Scaler file not found: {filepath}")
+    
+    with open(filepath, 'rb') as f:
+        scaler = pickle.load(f)
+    
+    print(f"✅ Scaler loaded from: {filepath}")
+    return scaler
+
+
+def get_scaler_info(scaler):
+    """
+    Display information about a fitted MinMaxScaler.
+    
+    Args:
+        scaler (MinMaxScaler): Fitted scaler object
+        
+    Returns:
+        dict: Dictionary containing scaler information
+        
+    Example:
+        >>> scaler = load_output_scaler('data/output_scaler.pkl')
+        >>> info = get_scaler_info(scaler)
+        >>> print(info)
+    """
+    if not hasattr(scaler, 'data_min_'):
+        print("⚠️  Scaler has not been fitted yet!")
+        return None
+    
+    info = {
+        'feature_range': scaler.feature_range,
+        'n_features': scaler.n_features_in_,
+        'data_min': scaler.data_min_,
+        'data_max': scaler.data_max_,
+        'data_range': scaler.data_range_,
+        'scale': scaler.scale_,
+        'min': scaler.min_
+    }
+    
+    print("📊 MinMaxScaler Information:")
+    print(f"   Feature range: {info['feature_range']}")
+    print(f"   Number of features: {info['n_features']}")
+    print(f"   Data min values: {info['data_min']}")
+    print(f"   Data max values: {info['data_max']}")
+    print(f"   Data range: {info['data_range']}")
+    
+    return info
 
