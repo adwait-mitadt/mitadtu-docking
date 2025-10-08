@@ -49,8 +49,8 @@ def main():
     )
     
     # Evaluate and save
-    test_loss, test_mae = model.evaluate(test_ds)
-    print(f"✅ Test MSE: {test_loss:.4f}, MAE: {test_mae:.4f}")
+    # test_loss, test_mae = model.evaluate(test_ds)
+    # print(f"✅ Test MSE: {test_loss:.4f}, MAE: {test_mae:.4f}")
     print(f"💾 Model saved: {MODEL_SAVE_PATH}")
     print(f"📊 Training history saved: logs/training_history.csv")
 
