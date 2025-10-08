@@ -1,9 +1,12 @@
+import tensorflow.keras.backend as K
 import tensorflow as tf
 from tensorflow.keras.applications import ResNet50
 from tensorflow.keras.layers import GlobalAveragePooling2D, Dense, Dropout, Input
 from tensorflow.keras.models import Model
 
 def build_resnet_regression(learning_rate=1e-4):
+	def rmse(y_true, y_pred):
+		return K.sqrt(K.mean(K.square(y_pred - y_true)))
 	input_shape = (224, 224, 3)
 	base_model = ResNet50(weights="imagenet", include_top=False, input_shape=input_shape)
 	base_model.trainable = False  # Freeze all layers
@@ -16,7 +19,7 @@ def build_resnet_regression(learning_rate=1e-4):
 
 	model = Model(inputs=base_model.input, outputs=outputs)
 	optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
-	model.compile(optimizer=optimizer, loss="mse", metrics=["mae"])
+	model.compile(optimizer=optimizer, loss=rmse, metrics=[rmse])
 	return model
 
 
