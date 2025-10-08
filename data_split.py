@@ -1,3 +1,4 @@
+
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -9,10 +10,10 @@ import cv2
 from helpers import load_image, resize_image, normalize_image  # Use existing helper functions
 
 def resize_images_from_labelled_data(csv_path, target_width=224, target_height=224, output_dir="data/resized", 
-                                   scale_coordinates=True, normalize=True, 
-                                   mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
+                                   scale_coordinates=True):
     """
-    Load images from CSV, resize them to specified dimensions, and optionally normalize them.
+    Load images from CSV, resize them to specified dimensions, and save as JPEG.
+    Note: Normalization will be applied during training, not during preprocessing.
     
     Args:
         csv_path (str): Path to CSV file with columns 'filename', 'x', 'y'
@@ -20,16 +21,12 @@ def resize_images_from_labelled_data(csv_path, target_width=224, target_height=2
         target_height (int): Target height for resized images (default: 224)
         output_dir (str): Directory to save resized images
         scale_coordinates (bool): Whether to scale x,y coordinates proportionally
-        normalize (bool): Whether to apply ImageNet normalization (default: True)
-        mean (list): Mean values for normalization [R, G, B] (default: ImageNet mean)
-        std (list): Standard deviation values for normalization [R, G, B] (default: ImageNet std)
     
     Returns:
         pd.DataFrame: DataFrame with 'filename', 'x', 'y' columns
     """
     print(f"🖼️ Resizing images to {target_width}x{target_height} pixels...")
-    if normalize:
-        print(f"🎨 Applying ImageNet normalization with mean={mean}, std={std}")
+    print(f"💾 Saving as JPEG (normalization will be applied during training)")
     
     # Load the data
     df = pd.read_csv(csv_path)
@@ -65,22 +62,10 @@ def resize_images_from_labelled_data(csv_path, target_width=224, target_height=2
                 resized_image = resize_image(original_image, target_width, target_height)
                 
                 if resized_image is not None:
-                    # Apply normalization if requested
-                    if normalize:
-                        # Normalize using ImageNet statistics
-                        processed_image = normalize_image(resized_image, mean=mean, std=std)
-                        
-                        # Convert back to [0, 255] range for saving as JPEG
-                        # Denormalize: (normalized * std) + mean, then scale to [0, 255]
-                        denormalized = (processed_image * np.array(std) + np.array(mean)) * 255.0
-                        denormalized = np.clip(denormalized, 0, 255).astype(np.uint8)
-                        save_image = denormalized
-                    else:
-                        save_image = resized_image
-                    
-                    # Save image
+                    # Save resized image WITHOUT normalization
+                    # Normalization will be applied during training in the data pipeline
                     output_file = output_path / filename
-                    cv2.imwrite(str(output_file), cv2.cvtColor(save_image, cv2.COLOR_RGB2BGR))
+                    cv2.imwrite(str(output_file), cv2.cvtColor(resized_image, cv2.COLOR_RGB2BGR))
                     
                     results.append({
                         'filename': filename,
@@ -102,31 +87,26 @@ def resize_images_from_labelled_data(csv_path, target_width=224, target_height=2
     return result_df
 
 
-def create_resized_dataset(csv_path, target_width=224, target_height=224, output_csv="data/resized_labelled_data.csv",
-                          normalize=True, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
+def create_resized_dataset(csv_path, target_width=224, target_height=224, output_csv="data/resized_labelled_data.csv"):
     """
     Create a resized dataset with scaled coordinates and save to CSV.
+    Note: Images are saved without normalization. Normalization is applied during training.
     
     Args:
         csv_path (str): Path to the original CSV file
         target_width (int): Target width for resized images
         target_height (int): Target height for resized images
         output_csv (str): Path for the output CSV file
-        normalize (bool): Whether to apply ImageNet normalization (default: True)
-        mean (list): Mean values for normalization [R, G, B] (default: ImageNet mean)
-        std (list): Standard deviation values for normalization [R, G, B] (default: ImageNet std)
     
     Returns:
         pd.DataFrame: DataFrame with scaled coordinates for resized images
     """
     print(f"🔄 Creating resized dataset with scaled coordinates...")
-    if normalize:
-        print(f"🎨 ImageNet normalization will be applied during processing")
+    print(f"💡 Note: ImageNet normalization will be applied during training, not here")
     
     # Process images and get scaled coordinates
     result_df = resize_images_from_labelled_data(
-        csv_path, target_width, target_height, scale_coordinates=True, 
-        normalize=normalize, mean=mean, std=std
+        csv_path, target_width, target_height, scale_coordinates=True
     )
     
     # Save to CSV
@@ -267,13 +247,13 @@ def load_data_splits(data_dir="data"):
     return train_df, val_df, test_df
 
 
-def create_training_datasets(data_dir="data", image_dir="data/train", batch_size=32, img_size=224):
+def create_training_datasets(data_dir="data", image_dir="data/resized", batch_size=32, img_size=224):
     """
-    Complete pipeline: Load data splits and create TensorFlow datasets.
+    Complete pipeline: Load data splits and create TensorFlow datasets with ImageNet normalization.
     
     Args:
         data_dir (str): Directory containing split CSV files
-        image_dir (str): Directory containing training images
+        image_dir (str): Directory containing resized images
         batch_size (int): Batch size for datasets
         img_size (int): Target image size
     
@@ -286,24 +266,31 @@ def create_training_datasets(data_dir="data", image_dir="data/train", batch_size
         # Load data splits
         train_df, val_df, test_df = load_data_splits(data_dir)
         
-        def preprocess_function(filename, coords):
+        # ImageNet normalization constants
+        IMAGENET_MEAN = tf.constant([0.485, 0.456, 0.406])
+        IMAGENET_STD = tf.constant([0.229, 0.224, 0.225])
+        
+        def preprocess_function(filename, outputs):
             # Load and preprocess image
             image_path = tf.strings.join([str(image_dir) + "/", filename])
             image = tf.io.read_file(image_path)
             image = tf.image.decode_jpeg(image, channels=3)
             image = tf.image.resize(image, [img_size, img_size])
-            image = tf.cast(image, tf.float32) / 255.0
+            image = tf.cast(image, tf.float32) / 255.0  # Scale to [0, 1]
             
-            # Normalize coordinates to [0, 1] range
-            coords_normalized = coords / tf.cast([img_size, img_size], tf.float32)
+            # Apply ImageNet normalization
+            image = (image - IMAGENET_MEAN) / IMAGENET_STD
             
-            return image, coords_normalized
+            # outputs = [x, y, distance] - will be normalized by the model using scalers
+            # We keep them in original scale here for now
+            
+            return image, outputs
         
         # Create datasets
         def create_dataset(df, shuffle=False):
             dataset = tf.data.Dataset.from_tensor_slices((
                 df['filename'].values,
-                df[['x', 'y']].values.astype(np.float32)
+                df[['x', 'y', 'distance']].values.astype(np.float32)  # 3 outputs: x, y, distance
             ))
             dataset = dataset.map(preprocess_function, num_parallel_calls=tf.data.AUTOTUNE)
             if shuffle:
@@ -395,24 +382,21 @@ def main():
     print("="*50)
     print("Pipeline steps:")
     print("  🖼️ 1. Resize images to 224x224 pixels")
-    print("  🎨 2. Apply ImageNet normalization (mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])")
-    print("  📊 3. Scale coordinates proportionally")
-    print("  📈 4. Split data into train/val/test sets")
+    print("  📊 2. Scale coordinates proportionally")
+    print("  📈 3. Split data into train/val/test sets")
+    print("  🎨 4. ImageNet normalization applied during training")
     print("="*50)
     
-    # Step 1, 2 & 3: Resize images, normalize, and create scaled dataset
-    print("\n🖼️ STEP 1-3: Resizing Images, Normalizing, and Scaling Coordinates")
+    # Step 1 & 2: Resize images and create scaled dataset
+    print("\n🖼️ STEP 1-2: Resizing Images and Scaling Coordinates")
     resized_df = create_resized_dataset(
         str(csv_path), 
         target_width=224, 
-        target_height=224,
-        normalize=True,
-        mean=[0.485, 0.456, 0.406],  # ImageNet mean
-        std=[0.229, 0.224, 0.225]   # ImageNet std
+        target_height=224
     )
     
-    # Step 4: Split the resized data
-    print("\n📈 STEP 4: Splitting Data")
+    # Step 3: Split the resized data
+    print("\n📈 STEP 3: Splitting Data")
     train_df, val_df, test_df = split_data("data/resized_labelled_data.csv", random_state=42)
     
     # Verify splits for data integrity
@@ -426,7 +410,7 @@ def main():
     print("="*50)
     print(f"✅ Images processed: {len(resized_df)}")
     print(f"📐 Target dimensions: 224x224 pixels")
-    print(f"🎨 ImageNet normalization applied: Yes")
+    print(f"🎨 ImageNet normalization: Applied during training")
     print(f"   📊 Mean: [0.485, 0.456, 0.406] (R, G, B)")
     print(f"   📈 Std:  [0.229, 0.224, 0.225] (R, G, B)")
     print(f"📊 Training samples: {len(train_df)}")
@@ -437,7 +421,7 @@ def main():
     print("\n✅ Complete data processing pipeline finished successfully!")
     print("📁 Check the 'data/resized/' folder for processed images")
     print("📄 Check 'data/resized_labelled_data.csv' for scaled coordinates")
-    print("🎨 Images have been normalized using ImageNet statistics for optimal model training")
+    print("🎨 ImageNet normalization will be applied during training via TensorFlow data pipeline")
 
 
 if __name__ == "__main__":

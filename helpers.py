@@ -966,3 +966,189 @@ def get_scaler_info(scaler):
     
     return info
 
+
+
+# ============================================================================
+# IMAGE INPUT NORMALIZATION FUNCTIONS (Pixel-level normalization)
+# ============================================================================
+
+def normalize_image_pixels(image_array, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
+    """
+    Normalize image pixel values using mean and standard deviation (typically ImageNet stats).
+    This is the standard normalization for CNN inputs.
+    
+    Args:
+        image_array (numpy.ndarray): Image array with shape (H, W, 3) or (N, H, W, 3)
+                                     Values should be in [0, 1] range
+        mean (list): Mean values for R, G, B channels (default: ImageNet mean)
+        std (list): Standard deviation values for R, G, B channels (default: ImageNet std)
+        
+    Returns:
+        numpy.ndarray: Normalized image array with same shape as input
+        
+    Example:
+        >>> image = load_image('data/train/0.jpg')  # Shape: (480, 640, 3), values [0-255]
+        >>> image = image / 255.0  # Convert to [0, 1]
+        >>> normalized = normalize_image_pixels(image)
+    """
+    # Convert to float32 if needed
+    image_array = image_array.astype(np.float32)
+    
+    # If image is in [0, 255] range, scale to [0, 1]
+    if image_array.max() > 1.0:
+        image_array = image_array / 255.0
+    
+    # Convert mean and std to numpy arrays
+    mean = np.array(mean, dtype=np.float32)
+    std = np.array(std, dtype=np.float32)
+    
+    # Apply normalization: (image - mean) / std
+    normalized = (image_array - mean) / std
+    
+    return normalized
+
+
+def denormalize_image_pixels(normalized_array, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
+    """
+    Denormalize image pixels back to [0, 1] range for visualization.
+    
+    Args:
+        normalized_array (numpy.ndarray): Normalized image array
+        mean (list): Mean values used for normalization
+        std (list): Std values used for normalization
+        
+    Returns:
+        numpy.ndarray: Denormalized image in [0, 1] range
+        
+    Example:
+        >>> denormalized = denormalize_image_pixels(normalized_image)
+        >>> plt.imshow(denormalized)
+    """
+    # Convert mean and std to numpy arrays
+    mean = np.array(mean, dtype=np.float32)
+    std = np.array(std, dtype=np.float32)
+    
+    # Reverse normalization: image * std + mean
+    denormalized = (normalized_array * std) + mean
+    
+    # Clip to [0, 1] range
+    denormalized = np.clip(denormalized, 0, 1)
+    
+    return denormalized
+
+
+def create_image_statistics(images_array):
+    """
+    Calculate mean and std statistics from a batch of images for custom normalization.
+    
+    Args:
+        images_array (numpy.ndarray): Array of images with shape (N, H, W, 3)
+                                      Values should be in [0, 1] range
+        
+    Returns:
+        dict: Dictionary with 'mean' and 'std' for each channel
+        
+    Example:
+        >>> images, _, _, _ = load_and_preprocess_images('data/train_split.csv', 'data/train')
+        >>> stats = create_image_statistics(images)
+        >>> print(f"Custom mean: {stats['mean']}")
+        >>> print(f"Custom std: {stats['std']}")
+    """
+    # Ensure images are in [0, 1] range
+    if images_array.max() > 1.0:
+        images_array = images_array / 255.0
+    
+    # Calculate mean and std per channel across all images
+    mean = np.mean(images_array, axis=(0, 1, 2))
+    std = np.std(images_array, axis=(0, 1, 2))
+    
+    stats = {
+        'mean': mean.tolist(),
+        'std': std.tolist(),
+        'n_images': len(images_array)
+    }
+    
+    print("📊 Image Statistics:")
+    print("="*60)
+    print(f"Number of images: {stats['n_images']}")
+    print(f"Mean (R, G, B): {stats['mean']}")
+    print(f"Std  (R, G, B): {stats['std']}")
+    print("="*60)
+    
+    return stats
+
+
+def save_image_statistics(stats, filepath='data/image_stats.pkl'):
+    """
+    Save image statistics to disk.
+    
+    Args:
+        stats (dict): Dictionary with 'mean' and 'std' values
+        filepath (str): Path to save the statistics
+        
+    Returns:
+        str: Path where stats were saved
+    """
+    filepath = Path(filepath)
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+    
+    with open(filepath, 'wb') as f:
+        pickle.dump(stats, f)
+    
+    print(f"✅ Image statistics saved to: {filepath}")
+    return str(filepath)
+
+
+def load_image_statistics(filepath='data/image_stats.pkl'):
+    """
+    Load saved image statistics from disk.
+    
+    Args:
+        filepath (str): Path to the saved statistics file
+        
+    Returns:
+        dict: Dictionary with 'mean' and 'std' values
+    """
+    filepath = Path(filepath)
+    
+    if not filepath.exists():
+        raise FileNotFoundError(f"Image statistics file not found: {filepath}")
+    
+    with open(filepath, 'rb') as f:
+        stats = pickle.load(f)
+    
+    print(f"✅ Image statistics loaded from: {filepath}")
+    return stats
+
+
+def batch_normalize_images(images_array, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
+    """
+    Normalize a batch of images efficiently.
+    
+    Args:
+        images_array (numpy.ndarray): Batch of images with shape (N, H, W, 3)
+        mean (list): Mean values for normalization
+        std (list): Std values for normalization
+        
+    Returns:
+        numpy.ndarray: Normalized batch of images
+        
+    Example:
+        >>> images = np.array([img1, img2, img3])  # Shape: (3, 224, 224, 3)
+        >>> normalized = batch_normalize_images(images)
+    """
+    # Convert to float32
+    images_array = images_array.astype(np.float32)
+    
+    # Scale to [0, 1] if needed
+    if images_array.max() > 1.0:
+        images_array = images_array / 255.0
+    
+    # Convert mean and std to numpy arrays with shape (1, 1, 1, 3) for broadcasting
+    mean = np.array(mean, dtype=np.float32).reshape(1, 1, 1, 3)
+    std = np.array(std, dtype=np.float32).reshape(1, 1, 1, 3)
+    
+    # Apply normalization
+    normalized = (images_array - mean) / std
+    
+    return normalized
