@@ -6,7 +6,10 @@ from pathlib import Path
 import cv2
 
 # Import helper functions from helpers.py
-from helpers import load_image, resize_image, normalize_image  # Use existing helper functions
+from helpers import (
+    load_image, resize_image, normalize_image,  # Image processing
+    create_output_scaler, load_output_scaler, normalize_outputs, denormalize_outputs  # Output normalization
+)
 
 def resize_images_from_labelled_data(csv_path, target_width=224, target_height=224, output_dir="data/resized", 
                                    scale_coordinates=True, normalize=True, 
@@ -248,6 +251,79 @@ def verify_splits(train_df, val_df, test_df):
         if val_test_overlap:
             print(f"Validation-Test overlap: {len(val_test_overlap)} files")
 
+
+def normalize_output_splits(train_df, val_df, test_df, output_columns=['x', 'y', 'distance'], 
+                            scaler_path='data/output_scaler.pkl'):
+    """
+    Apply MinMaxScaler normalization to output columns (coordinates and distances).
+    
+    Args:
+        train_df (pd.DataFrame): Training data
+        val_df (pd.DataFrame): Validation data
+        test_df (pd.DataFrame): Test data
+        output_columns (list): Columns to normalize (default: ['x', 'y', 'distance'])
+        scaler_path (str): Path to save the fitted scaler
+        
+    Returns:
+        tuple: (train_df, val_df, test_df, scaler) - DataFrames with normalized outputs and fitted scaler
+        
+    Note:
+        - Scaler is fitted ONLY on training data to prevent data leakage
+        - Same scaler is then applied to validation and test sets
+        - Original values are preserved in columns with '_original' suffix
+    """
+    print("\n🎯 Applying MinMaxScaler normalization to outputs...")
+    print(f"   Columns to normalize: {output_columns}")
+    
+    # Check if all columns exist
+    available_columns = [col for col in output_columns if col in train_df.columns]
+    if len(available_columns) < len(output_columns):
+        missing = set(output_columns) - set(available_columns)
+        print(f"   ⚠ Warning: Missing columns {missing}. Only normalizing: {available_columns}")
+        output_columns = available_columns
+    
+    if not output_columns:
+        print("   ⚠ No columns to normalize!")
+        return train_df, val_df, test_df, None
+    
+    # Create copies to avoid modifying original dataframes
+    train_norm = train_df.copy()
+    val_norm = val_df.copy()
+    test_norm = test_df.copy()
+    
+    # Save original values
+    for col in output_columns:
+        train_norm[f'{col}_original'] = train_norm[col]
+        val_norm[f'{col}_original'] = val_norm[col]
+        test_norm[f'{col}_original'] = test_norm[col]
+    
+    # Create and fit scaler on training data ONLY
+    scaler = create_output_scaler(train_norm, output_columns=output_columns, scaler_path=scaler_path)
+    
+    # Apply normalization to all splits
+    print("   Normalizing training data...")
+    train_norm[output_columns] = normalize_outputs(train_norm, output_columns=output_columns, scaler=scaler)
+    
+    print("   Normalizing validation data...")
+    val_norm[output_columns] = normalize_outputs(val_norm, output_columns=output_columns, scaler=scaler)
+    
+    print("   Normalizing test data...")
+    test_norm[output_columns] = normalize_outputs(test_norm, output_columns=output_columns, scaler=scaler)
+    
+    # Print normalization statistics
+    print("\n   📊 Normalization Statistics:")
+    for col in output_columns:
+        print(f"\n      {col}:")
+        print(f"         Train - min: {train_norm[col].min():.4f}, max: {train_norm[col].max():.4f}, mean: {train_norm[col].mean():.4f}")
+        print(f"         Val   - min: {val_norm[col].min():.4f}, max: {val_norm[col].max():.4f}, mean: {val_norm[col].mean():.4f}")
+        print(f"         Test  - min: {test_norm[col].min():.4f}, max: {test_norm[col].max():.4f}, mean: {test_norm[col].mean():.4f}")
+    
+    print(f"\n   ✅ Output normalization complete!")
+    print(f"   💾 Scaler saved to: {scaler_path}")
+    
+    return train_norm, val_norm, test_norm, scaler
+
+
 def load_normalized_images_from_csv(csv_path, image_dir="data/resized", 
                                    normalize=True, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
     """
@@ -321,6 +397,7 @@ def main():
     print("  🎨 2. Apply ImageNet normalization (mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])")
     print("  📊 3. Scale coordinates proportionally")
     print("  📈 4. Split data into train/val/test sets")
+    print("  🎯 5. Apply MinMaxScaler normalization to outputs (coordinates & distances)")
     print("="*50)
     
     # Step 1, 2 & 3: Resize images, normalize, and create scaled dataset
@@ -341,8 +418,40 @@ def main():
     # Verify splits for data integrity
     verify_splits(train_df, val_df, test_df)
     
-    # Save the splits
-    save_splits(train_df, val_df, test_df, output_dir="data")
+    # Step 5: Apply output normalization (MinMaxScaler for coordinates and distances)
+    print("\n🎯 STEP 5: Applying Output Normalization")
+    
+    # Determine which columns to normalize based on what's available
+    available_columns = train_df.columns.tolist()
+    output_columns = []
+    if 'x' in available_columns and 'y' in available_columns:
+        output_columns.extend(['x', 'y'])
+    if 'distance' in available_columns:
+        output_columns.append('distance')
+    
+    if output_columns:
+        train_norm, val_norm, test_norm, scaler = normalize_output_splits(
+            train_df, val_df, test_df, 
+            output_columns=output_columns,
+            scaler_path='data/output_scaler.pkl'
+        )
+        
+        # Save normalized splits
+        print("\n   💾 Saving normalized splits...")
+        save_splits(train_norm, val_norm, test_norm, output_dir="data")
+        
+        # Also save non-normalized versions for reference
+        print("   💾 Saving original (non-normalized) splits as backup...")
+        train_df.to_csv("data/train_split_original.csv", index=False)
+        val_df.to_csv("data/val_split_original.csv", index=False)
+        test_df.to_csv("data/test_split_original.csv", index=False)
+        
+        normalized = True
+    else:
+        print("   ⚠ No output columns found for normalization. Skipping this step.")
+        save_splits(train_df, val_df, test_df, output_dir="data")
+        normalized = False
+        scaler = None
     
     # Print processing summary
     print("\n📋 PROCESSING SUMMARY:")
@@ -355,12 +464,23 @@ def main():
     print(f"📊 Training samples: {len(train_df)}")
     print(f"📈 Validation samples: {len(val_df)}")
     print(f"🧪 Test samples: {len(test_df)}")
+    if normalized:
+        print(f"🎯 Output normalization: Yes (MinMaxScaler)")
+        print(f"   📊 Normalized columns: {output_columns}")
+        print(f"   💾 Scaler saved to: data/output_scaler.pkl")
+    else:
+        print(f"🎯 Output normalization: No")
     print("="*50)
     
     print("\n✅ Complete data processing pipeline finished successfully!")
     print("📁 Check the 'data/resized/' folder for processed images")
     print("📄 Check 'data/resized_labelled_data.csv' for scaled coordinates")
     print("🎨 Images have been normalized using ImageNet statistics for optimal model training")
+    if normalized:
+        print("🎯 Outputs (coordinates & distances) have been normalized using MinMaxScaler")
+        print("   📊 Use the saved scaler (data/output_scaler.pkl) to denormalize predictions")
+        print("   💡 Example: denormalized = denormalize_outputs(predictions, scaler)")
+
 
 
 if __name__ == "__main__":
