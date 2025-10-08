@@ -12,6 +12,7 @@ from pathlib import Path
 # Import project modules
 from resnet_model import build_resnet_regression
 from data_split import create_training_datasets
+from ml_visualizer import visualize_training_results
 
 # ==================== CONFIGURATION ====================
 BATCH_SIZE = 32
@@ -37,7 +38,7 @@ def main():
     model = build_resnet_regression(learning_rate=LEARNING_RATE)  # Pass learning rate
     
     # Train model
-    model.fit(
+    history = model.fit(
         train_ds,
         epochs=EPOCHS,
         validation_data=val_ds,
@@ -53,6 +54,9 @@ def main():
     # print(f"✅ Test MSE: {test_loss:.4f}, MAE: {test_mae:.4f}")
     print(f"💾 Model saved: {MODEL_SAVE_PATH}")
     print(f"📊 Training history saved: logs/training_history.csv")
+    
+    # Visualize training results using the ML Training Visualizer
+    visualize_training_results(history, experiment_name="ISS_Docking_ResNet50")
 
 
 if __name__ == "__main__":
