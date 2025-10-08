@@ -249,7 +249,9 @@ def load_data_splits(data_dir="data"):
 
 def create_training_datasets(data_dir="data", image_dir="data/resized", batch_size=32, img_size=224):
     """
-    Complete pipeline: Load data splits and create TensorFlow datasets with ImageNet normalization.
+    Complete pipeline: Load data splits and create TensorFlow datasets with normalization.
+    - INPUT normalization: ImageNet normalization applied to images
+    - OUTPUT normalization: MinMaxScaler applied to x, y, distance using helpers.py
     
     Args:
         data_dir (str): Directory containing split CSV files
@@ -258,15 +260,42 @@ def create_training_datasets(data_dir="data", image_dir="data/resized", batch_si
         img_size (int): Target image size
     
     Returns:
-        tuple: (train_ds, val_ds, test_ds) - TensorFlow datasets ready for training
+        tuple: (train_ds, val_ds, test_ds, scalers) - TensorFlow datasets and output scalers
     """
     try:
         import tensorflow as tf
+        from helpers import create_output_scalers, normalize_outputs, save_output_scalers
         
         # Load data splits
         train_df, val_df, test_df = load_data_splits(data_dir)
         
-        # ImageNet normalization constants
+        # ============================================
+        # OUTPUT NORMALIZATION using helpers.py
+        # ============================================
+        print("📊 Creating output scalers for x, y, distance...")
+        train_outputs = train_df[['x', 'y', 'distance']].values.astype(np.float32)
+        
+        # Create scalers fitted on training data only
+        scalers = create_output_scalers(train_outputs, feature_range=(0, 1))
+        
+        # Normalize outputs for all datasets
+        train_outputs_norm, _ = normalize_outputs(train_outputs, scalers=scalers)
+        val_outputs_norm, _ = normalize_outputs(
+            val_df[['x', 'y', 'distance']].values.astype(np.float32), 
+            scalers=scalers
+        )
+        test_outputs_norm, _ = normalize_outputs(
+            test_df[['x', 'y', 'distance']].values.astype(np.float32), 
+            scalers=scalers
+        )
+        
+        # Save scalers for inference
+        save_output_scalers(scalers, filepath='data/output_scalers.pkl')
+        print("✅ Output scalers saved to: data/output_scalers.pkl")
+        
+        # ============================================
+        # INPUT NORMALIZATION (ImageNet)
+        # ============================================
         IMAGENET_MEAN = tf.constant([0.485, 0.456, 0.406])
         IMAGENET_STD = tf.constant([0.229, 0.224, 0.225])
         
@@ -278,38 +307,40 @@ def create_training_datasets(data_dir="data", image_dir="data/resized", batch_si
             image = tf.image.resize(image, [img_size, img_size])
             image = tf.cast(image, tf.float32) / 255.0  # Scale to [0, 1]
             
-            # Apply ImageNet normalization
+            # Apply ImageNet normalization to INPUT
             image = (image - IMAGENET_MEAN) / IMAGENET_STD
             
-            # outputs = [x, y, distance] - will be normalized by the model using scalers
-            # We keep them in original scale here for now
-            
+            # outputs are already normalized using helpers.normalize_outputs()
             return image, outputs
         
-        # Create datasets
-        def create_dataset(df, shuffle=False):
+        # Create datasets with PRE-NORMALIZED outputs
+        def create_dataset(df, outputs_normalized, shuffle=False):
             dataset = tf.data.Dataset.from_tensor_slices((
                 df['filename'].values,
-                df[['x', 'y', 'distance']].values.astype(np.float32)  # 3 outputs: x, y, distance
+                outputs_normalized
             ))
             dataset = dataset.map(preprocess_function, num_parallel_calls=tf.data.AUTOTUNE)
             if shuffle:
                 dataset = dataset.shuffle(1000)
             return dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
         
-        train_ds = create_dataset(train_df, shuffle=True)
-        val_ds = create_dataset(val_df, shuffle=False)
-        test_ds = create_dataset(test_df, shuffle=False)
+        train_ds = create_dataset(train_df, train_outputs_norm, shuffle=True)
+        val_ds = create_dataset(val_df, val_outputs_norm, shuffle=False)
+        test_ds = create_dataset(test_df, test_outputs_norm, shuffle=False)
         
-        print(f"✅ Created TensorFlow datasets: Train={len(train_df)}, Val={len(val_df)}, Test={len(test_df)}")
-        return train_ds, val_ds, test_ds
+        print(f"✅ Created TensorFlow datasets with normalized outputs:")
+        print(f"   Train={len(train_df)}, Val={len(val_df)}, Test={len(test_df)}")
+        print(f"💡 Use helpers.denormalize_outputs(predictions, scalers) for inference")
         
-    except ImportError:
-        print("❌ TensorFlow not found. Please install: pip install tensorflow")
-        return None, None, None
+        return train_ds, val_ds, test_ds, scalers
+        
+    except ImportError as ie:
+        print(f"❌ Import error: {ie}")
+        print("Please install required packages: pip install tensorflow scikit-learn")
+        return None, None, None, None
     except Exception as e:
         print(f"❌ Error creating datasets: {e}")
-        return None, None, None
+        return None, None, None, None
 
 
 def load_normalized_images_from_csv(csv_path, image_dir="data/resized", 
@@ -410,18 +441,30 @@ def main():
     print("="*50)
     print(f"✅ Images processed: {len(resized_df)}")
     print(f"📐 Target dimensions: 224x224 pixels")
-    print(f"🎨 ImageNet normalization: Applied during training")
-    print(f"   📊 Mean: [0.485, 0.456, 0.406] (R, G, B)")
-    print(f"   📈 Std:  [0.229, 0.224, 0.225] (R, G, B)")
-    print(f"📊 Training samples: {len(train_df)}")
-    print(f"📈 Validation samples: {len(val_df)}")
-    print(f"🧪 Test samples: {len(test_df)}")
+    print(f"\n🎨 INPUT Normalization (Images):")
+    print(f"   Method: ImageNet normalization")
+    print(f"   Mean: [0.485, 0.456, 0.406] (R, G, B)")
+    print(f"   Std:  [0.229, 0.224, 0.225] (R, G, B)")
+    print(f"\n📊 OUTPUT Normalization (x, y, distance):")
+    print(f"   Method: MinMaxScaler [0, 1] per feature")
+    print(f"   Scalers: Independent for x, y, distance")
+    print(f"   Source: helpers.py functions")
+    print(f"   Saved to: data/output_scalers.pkl")
+    print(f"\n📈 Data Splits:")
+    print(f"   Training samples: {len(train_df)}")
+    print(f"   Validation samples: {len(val_df)}")
+    print(f"   Test samples: {len(test_df)}")
     print("="*50)
     
     print("\n✅ Complete data processing pipeline finished successfully!")
     print("📁 Check the 'data/resized/' folder for processed images")
     print("📄 Check 'data/resized_labelled_data.csv' for scaled coordinates")
-    print("🎨 ImageNet normalization will be applied during training via TensorFlow data pipeline")
+    print("\n💡 For training:")
+    print("   - Use create_training_datasets() to get normalized TF datasets")
+    print("   - Scalers are saved automatically to data/output_scalers.pkl")
+    print("\n💡 For inference:")
+    print("   - Load scalers: scalers = helpers.load_output_scalers()")
+    print("   - Denormalize: helpers.denormalize_outputs(predictions, scalers)")
 
 
 if __name__ == "__main__":
