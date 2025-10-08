@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 import cv2
 import ast
 from pathlib import Path
+from sklearn.preprocessing import MinMaxScaler
+import pickle
 
 # Setting paths using pathlib
 data_path = Path("data/")
@@ -543,6 +545,125 @@ def load_processed_images(metadata_file="data/processed/metadata/metadata.csv",
     print(f"   Coordinates shape: {coordinates_array.shape}")
     
     return images_array, coordinates_array, metadata_df
+
+
+def create_output_scaler(train_df, output_columns=['x', 'y'], scaler_path='data/scaler.pkl'):
+    """
+    Create and fit a MinMaxScaler for output normalization (coordinates/distances).
+    
+    Args:
+        train_df (pd.DataFrame): Training dataframe with output columns
+        output_columns (list): List of columns to normalize (default: ['x', 'y'])
+        scaler_path (str): Path to save the fitted scaler
+        
+    Returns:
+        MinMaxScaler: Fitted scaler object
+        
+    Note:
+        - The scaler is fitted only on training data to prevent data leakage
+        - The scaler is saved to disk for later use during inference
+    """
+    from pathlib import Path
+    
+    print(f"🎯 Creating MinMaxScaler for output normalization...")
+    print(f"   Columns to normalize: {output_columns}")
+    
+    # Create scaler
+    scaler = MinMaxScaler()
+    
+    # Fit scaler on training data only
+    scaler.fit(train_df[output_columns])
+    
+    # Print scaler statistics
+    print(f"   Scaler statistics:")
+    for i, col in enumerate(output_columns):
+        print(f"      {col}: min={scaler.data_min_[i]:.2f}, max={scaler.data_max_[i]:.2f}")
+    
+    # Save scaler
+    scaler_path = Path(scaler_path)
+    scaler_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    with open(scaler_path, 'wb') as f:
+        pickle.dump(scaler, f)
+    
+    print(f"   ✅ Scaler saved to: {scaler_path}")
+    
+    return scaler
+
+
+def load_output_scaler(scaler_path='data/scaler.pkl'):
+    """
+    Load a previously saved MinMaxScaler.
+    
+    Args:
+        scaler_path (str): Path to the saved scaler
+        
+    Returns:
+        MinMaxScaler: Loaded scaler object
+    """
+    from pathlib import Path
+    
+    scaler_path = Path(scaler_path)
+    
+    if not scaler_path.exists():
+        raise FileNotFoundError(f"Scaler file not found at: {scaler_path}")
+    
+    with open(scaler_path, 'rb') as f:
+        scaler = pickle.load(f)
+    
+    print(f"✅ Scaler loaded from: {scaler_path}")
+    
+    return scaler
+
+
+def normalize_outputs(data, output_columns=['x', 'y'], scaler=None):
+    """
+    Normalize output values using MinMaxScaler.
+    
+    Args:
+        data (pd.DataFrame or np.ndarray): Data to normalize
+        output_columns (list): Columns to normalize (only used if data is DataFrame)
+        scaler (MinMaxScaler): Fitted scaler (if None, will create a new one)
+        
+    Returns:
+        np.ndarray: Normalized values in range [0, 1]
+        
+    Note:
+        - For training: create scaler using create_output_scaler() first
+        - For validation/test: use the scaler fitted on training data
+    """
+    if isinstance(data, pd.DataFrame):
+        values = data[output_columns].values
+    else:
+        values = data
+    
+    if scaler is None:
+        raise ValueError("Scaler must be provided. Use create_output_scaler() first.")
+    
+    normalized = scaler.transform(values)
+    
+    return normalized
+
+
+def denormalize_outputs(normalized_data, scaler):
+    """
+    Convert normalized output values back to original scale.
+    
+    Args:
+        normalized_data (np.ndarray): Normalized data in range [0, 1]
+        scaler (MinMaxScaler): Fitted scaler used for normalization
+        
+    Returns:
+        np.ndarray: Denormalized values in original scale
+        
+    Usage:
+        # After model prediction
+        predictions = model.predict(X_test)
+        original_scale_predictions = denormalize_outputs(predictions, scaler)
+    """
+    denormalized = scaler.inverse_transform(normalized_data)
+    
+    return denormalized
 
 
 if __name__ == "__main__":
