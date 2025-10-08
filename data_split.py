@@ -324,6 +324,83 @@ def normalize_output_splits(train_df, val_df, test_df, output_columns=['x', 'y',
     return train_norm, val_norm, test_norm, scaler
 
 
+def load_data_splits(data_dir="data"):
+    """
+    Load training, validation, and test data splits from CSV files.
+    
+    Args:
+        data_dir (str): Directory containing the split CSV files
+    
+    Returns:
+        tuple: (train_df, val_df, test_df) - DataFrames for train, validation, and test splits
+    """
+    data_path = Path(data_dir)
+    train_df = pd.read_csv(data_path / "train_split.csv")
+    val_df = pd.read_csv(data_path / "val_split.csv")
+    test_df = pd.read_csv(data_path / "test_split.csv")
+    
+    print(f"✅ Loaded data splits: Train={len(train_df)}, Val={len(val_df)}, Test={len(test_df)}")
+    return train_df, val_df, test_df
+
+
+def create_training_datasets(data_dir="data", image_dir="data/train", batch_size=32, img_size=224):
+    """
+    Complete pipeline: Load data splits and create TensorFlow datasets.
+    
+    Args:
+        data_dir (str): Directory containing split CSV files
+        image_dir (str): Directory containing training images
+        batch_size (int): Batch size for datasets
+        img_size (int): Target image size
+    
+    Returns:
+        tuple: (train_ds, val_ds, test_ds) - TensorFlow datasets ready for training
+    """
+    try:
+        import tensorflow as tf
+        
+        # Load data splits
+        train_df, val_df, test_df = load_data_splits(data_dir)
+        
+        def preprocess_function(filename, coords):
+            # Load and preprocess image
+            image_path = tf.strings.join([str(image_dir) + "/", filename])
+            image = tf.io.read_file(image_path)
+            image = tf.image.decode_jpeg(image, channels=3)
+            image = tf.image.resize(image, [img_size, img_size])
+            image = tf.cast(image, tf.float32) / 255.0
+            
+            # Normalize coordinates to [0, 1] range
+            coords_normalized = coords / tf.cast([img_size, img_size], tf.float32)
+            
+            return image, coords_normalized
+        
+        # Create datasets
+        def create_dataset(df, shuffle=False):
+            dataset = tf.data.Dataset.from_tensor_slices((
+                df['filename'].values,
+                df[['x', 'y']].values.astype(np.float32)
+            ))
+            dataset = dataset.map(preprocess_function, num_parallel_calls=tf.data.AUTOTUNE)
+            if shuffle:
+                dataset = dataset.shuffle(1000)
+            return dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
+        
+        train_ds = create_dataset(train_df, shuffle=True)
+        val_ds = create_dataset(val_df, shuffle=False)
+        test_ds = create_dataset(test_df, shuffle=False)
+        
+        print(f"✅ Created TensorFlow datasets: Train={len(train_df)}, Val={len(val_df)}, Test={len(test_df)}")
+        return train_ds, val_ds, test_ds
+        
+    except ImportError:
+        print("❌ TensorFlow not found. Please install: pip install tensorflow")
+        return None, None, None
+    except Exception as e:
+        print(f"❌ Error creating datasets: {e}")
+        return None, None, None
+
+
 def load_normalized_images_from_csv(csv_path, image_dir="data/resized", 
                                    normalize=True, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
     """
