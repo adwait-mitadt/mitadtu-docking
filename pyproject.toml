@@ -14,7 +14,4 @@ dependencies = [
     "scikit-learn>=1.6.1",
     "scipy>=1.13.1",
     "seaborn>=0.13.2",
-    "tensorboard>=2.20.0",
-    "tensorflow>=2.20.0",
-    "torch>=2.8.0",
 ]
