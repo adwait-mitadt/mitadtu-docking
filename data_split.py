@@ -264,7 +264,7 @@ def create_training_datasets(data_dir="data", image_dir="data/resized", batch_si
     """
     try:
         import tensorflow as tf
-        from helpers import create_output_scalers, normalize_outputs, save_output_scalers
+        from helpers import create_output_scaler, normalize_outputs, save_output_scaler
         
         # Load data splits
         train_df, val_df, test_df = load_data_splits(data_dir)
@@ -272,26 +272,26 @@ def create_training_datasets(data_dir="data", image_dir="data/resized", batch_si
         # ============================================
         # OUTPUT NORMALIZATION using helpers.py
         # ============================================
-        print("📊 Creating output scalers for x, y, distance...")
+        print("📊 Creating output scaler for x, y, distance...")
         train_outputs = train_df[['x', 'y', 'distance']].values.astype(np.float32)
         
-        # Create scalers fitted on training data only
-        scalers = create_output_scalers(train_outputs, feature_range=(0, 1))
+        # Create scaler fitted on training data only
+        scaler = create_output_scaler(train_outputs, feature_range=(0, 1))
         
         # Normalize outputs for all datasets
-        train_outputs_norm, _ = normalize_outputs(train_outputs, scalers=scalers)
+        train_outputs_norm, _ = normalize_outputs(train_outputs, scaler=scaler)
         val_outputs_norm, _ = normalize_outputs(
             val_df[['x', 'y', 'distance']].values.astype(np.float32), 
-            scalers=scalers
+            scaler=scaler
         )
         test_outputs_norm, _ = normalize_outputs(
             test_df[['x', 'y', 'distance']].values.astype(np.float32), 
-            scalers=scalers
+            scaler=scaler
         )
         
-        # Save scalers for inference
-        save_output_scalers(scalers, filepath='data/output_scalers.pkl')
-        print("✅ Output scalers saved to: data/output_scalers.pkl")
+        # Save scaler for inference
+        save_output_scaler(scaler, filepath='data/output_scaler.pkl')
+        print("✅ Output scaler saved to: data/output_scaler.pkl")
         
         # ============================================
         # INPUT NORMALIZATION (ImageNet)
@@ -330,9 +330,9 @@ def create_training_datasets(data_dir="data", image_dir="data/resized", batch_si
         
         print(f"✅ Created TensorFlow datasets with normalized outputs:")
         print(f"   Train={len(train_df)}, Val={len(val_df)}, Test={len(test_df)}")
-        print(f"💡 Use helpers.denormalize_outputs(predictions, scalers) for inference")
+        print(f"💡 Use helpers.denormalize_outputs(predictions, scaler) for inference")
         
-        return train_ds, val_ds, test_ds, scalers
+        return train_ds, val_ds, test_ds, scaler
         
     except ImportError as ie:
         print(f"❌ Import error: {ie}")

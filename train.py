@@ -28,7 +28,7 @@ def main():
     print(f"Config: {BATCH_SIZE} batch, {EPOCHS} epochs, {IMG_SIZE}x{IMG_SIZE}px images")
     
     # all datasets using data_split.py 
-    train_ds, val_ds, test_ds = create_training_datasets(
+    train_ds, val_ds, test_ds, scaler = create_training_datasets(
         data_dir="data", image_dir=IMAGE_DIR, batch_size=BATCH_SIZE, img_size=IMG_SIZE
     )
     

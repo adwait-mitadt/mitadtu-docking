@@ -14,7 +14,7 @@ def build_resnet_regression(learning_rate=1e-4):
 	def rmse_y(y_true, y_pred):
 		return keras.ops.sqrt(keras.ops.mean(keras.ops.square(y_pred[:, 1] - y_true[:, 1])))
 
-	def rmse_dist(y_true, y_pred):
+	def rmse_distance(y_true, y_pred):
 		return keras.ops.sqrt(keras.ops.mean(keras.ops.square(y_pred[:, 2] - y_true[:, 2])))
 
 	input_shape = (224, 224, 3)
@@ -32,7 +32,7 @@ def build_resnet_regression(learning_rate=1e-4):
 	model.compile(
 		optimizer=optimizer,
 		loss=rmse,
-		metrics=[rmse, rmse_x, rmse_y, rmse_dist],
+		metrics=[rmse, rmse_x, rmse_y, rmse_distance],
 	)
 	return model
 
