@@ -1,7 +1,7 @@
-import keras
-from keras.applications import ResNet50
-from keras.layers import GlobalAveragePooling2D, Dense, Dropout, Input
-from keras.models import Model
+from tensorflow import keras
+from tensorflow.keras.applications import ResNet50
+from tensorflow.keras.layers import GlobalAveragePooling2D, Dense, Dropout, Input
+from tensorflow.keras.models import Model
 
 
 def build_resnet_regression(learning_rate=1e-4):
@@ -23,6 +23,7 @@ def build_resnet_regression(learning_rate=1e-4):
     base_model.trainable = False  # Freeze all layers
 
     x = base_model.output
+    x = GlobalAveragePooling2D()(x)
     x = Dense(64, activation="relu")(x)
     x = Dense(64, activation="relu")(x)
     outputs = Dense(3, activation="sigmoid")(x)  # Regression output: x, y, distance
@@ -61,4 +62,4 @@ def build_resnet50():
 
 if __name__ == "__main__":
     model = build_resnet_regression()
-    model.summary()
+    model.summary()    
