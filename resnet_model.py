@@ -15,13 +15,8 @@ def build_resnet_regression(learning_rate=1e-4):
     def rmse_y(y_true, y_pred):
         return keras.ops.sqrt(keras.ops.mean(keras.ops.square(y_pred[:, 1] - y_true[:, 1])))
 
-<<<<<<< HEAD
-	def rmse_distance(y_true, y_pred):
-		return keras.ops.sqrt(keras.ops.mean(keras.ops.square(y_pred[:, 2] - y_true[:, 2])))
-=======
     def rmse_dist(y_true, y_pred):
         return keras.ops.sqrt(keras.ops.mean(keras.ops.square(y_pred[:, 2] - y_true[:, 2])))
->>>>>>> f3d5072164c4b12c810d0156078758927a490d52
 
     input_shape = (224, 224, 3)
     base_model = ResNet50(weights="imagenet", include_top=False, input_shape=input_shape)
@@ -33,16 +28,6 @@ def build_resnet_regression(learning_rate=1e-4):
     x = Dense(64, activation="relu")(x)
     outputs = Dense(3, activation="sigmoid")(x)  # Regression output: x, y, distance
 
-<<<<<<< HEAD
-	model = Model(inputs=base_model.input, outputs=outputs)
-	optimizer = keras.optimizers.Adam(learning_rate=learning_rate)
-	model.compile(
-		optimizer=optimizer,
-		loss=rmse,
-		metrics=[rmse, rmse_x, rmse_y, rmse_distance],
-	)
-	return model
-=======
     model = Model(inputs=base_model.input, outputs=outputs)
     optimizer = keras.optimizers.Adam(learning_rate=learning_rate)
     model.compile(
@@ -51,7 +36,6 @@ def build_resnet_regression(learning_rate=1e-4):
         metrics=[total_loss, rmse_x, rmse_y, rmse_dist],
     )
     return model
->>>>>>> f3d5072164c4b12c810d0156078758927a490d52
 
 
 def build_resnet50():
