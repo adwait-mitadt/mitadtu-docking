@@ -4,7 +4,7 @@ import tensorflow as tf
 from pathlib import Path
 from resnet_model import build_resnet_regression
 
-BATCH_SIZE, EPOCHS, LR = 32, 20, 1e-4
+BATCH_SIZE, EPOCHS, LR = 32, 100, 1e-4
 
 def main():
     print(" Training ISS Docking Model")
@@ -38,15 +38,28 @@ def main():
         validation_data=val_ds,
         epochs=EPOCHS, 
         callbacks=[
-            tf.keras.callbacks.ModelCheckpoint("models/resnet_docking.h5", save_best_only=True, monitor='val_loss'),
-            tf.keras.callbacks.EarlyStopping(patience=5, restore_best_weights=True, monitor='val_loss'),
+            tf.keras.callbacks.ModelCheckpoint(
+                "models/resnet_docking_epoch_{epoch:03d}.h5", 
+                save_freq='epoch',
+                period=5,
+                save_best_only=False
+            ),
+            tf.keras.callbacks.ModelCheckpoint(
+                "models/resnet_docking_best.h5", 
+                save_best_only=True, 
+                monitor='val_loss',
+                verbose=1
+            ),
+            tf.keras.callbacks.EarlyStopping(patience=15, restore_best_weights=True, monitor='val_loss'),
             tf.keras.callbacks.CSVLogger("logs/training_history.csv")
         ]
     )
     
     print(f"\n Final Training | Loss: {history.history['loss'][-1]:.4f} | RMSE X: {history.history['rmse_x'][-1]:.4f} | Y: {history.history['rmse_y'][-1]:.4f} | Dist: {history.history['rmse_dist'][-1]:.4f}")
     print(f" Final Validation | Loss: {history.history['val_loss'][-1]:.4f} | RMSE X: {history.history['val_rmse_x'][-1]:.4f} | Y: {history.history['val_rmse_y'][-1]:.4f} | Dist: {history.history['val_rmse_dist'][-1]:.4f}")
-    print(" Model saved to models/resnet_docking.h5")
+    print(f"\n Best model saved to models/resnet_docking_best.h5")
+    print(f" Checkpoint models saved every 5 epochs in models/")
+
 
 if __name__ == "__main__":
     tf.random.set_seed(42)
