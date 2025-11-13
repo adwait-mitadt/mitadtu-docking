@@ -1,89 +1,52 @@
-﻿"""
-ISS Docking Model Training Script
-Minimal training pipeline using helper functions
-"""
-
+﻿"""ISS Docking Model Training"""
 import pandas as pd
 import tensorflow as tf
 from pathlib import Path
-
-# Import model builder
 from resnet_model import build_resnet_regression
 
-# Configuration
-BATCH_SIZE = 32
-EPOCHS = 20
-LEARNING_RATE = 1e-4
-IMG_SIZE = (224, 224)
-IMAGE_DIR = "data/train"
-MODEL_PATH = "models/resnet_docking.h5"
-
-
-def create_dataset(df, image_dir, batch_size, img_size, shuffle=False):
-    """Create TensorFlow dataset from DataFrame with x, y, distance outputs."""
-    def preprocess(filename, labels):
-        # Load and preprocess image
-        image_path = tf.strings.join([image_dir + "/", filename])
-        image = tf.io.read_file(image_path)
-        image = tf.image.decode_jpeg(image, channels=3)
-        image = tf.image.resize(image, img_size)
-        image = tf.cast(image, tf.float32) / 255.0
-        
-        # Normalize labels to [0, 1]
-        labels_norm = labels / [512.0, 512.0, 512.0]  # x, y, distance
-        return image, labels_norm
-    
-    dataset = tf.data.Dataset.from_tensor_slices((
-        df['filename'].values,
-        df[['x', 'y', 'distance']].values.astype('float32')
-    ))
-    
-    if shuffle:
-        dataset = dataset.shuffle(1000)
-    
-    return dataset.map(preprocess).batch(batch_size).prefetch(tf.data.AUTOTUNE)
-
+BATCH_SIZE, EPOCHS, LR = 32, 20, 1e-4
 
 def main():
-    print("🚀 ISS Docking Model Training")
-    
-    # Load split data
+    print(" Training ISS Docking Model")
     train_df = pd.read_csv("data/train_split.csv")
     val_df = pd.read_csv("data/val_split.csv")
-    test_df = pd.read_csv("data/test_split.csv")
+    print(f" {len(train_df)} training samples")
+    print(f" {len(val_df)} validation samples")
     
-    print(f"📊 Data: {len(train_df)} train, {len(val_df)} val, {len(test_df)} test")
+    def preprocess(filename, labels):
+        img = tf.io.read_file(tf.strings.join(["data/train/", filename]))
+        img = tf.image.decode_jpeg(img, channels=3)
+        img = tf.image.resize(img, (224, 224))
+        return tf.cast(img, tf.float32) / 255.0, labels / [512.0, 512.0, 512.0]
     
-    # Create datasets
-    train_ds = create_dataset(train_df, IMAGE_DIR, BATCH_SIZE, IMG_SIZE, shuffle=True)
-    val_ds = create_dataset(val_df, IMAGE_DIR, BATCH_SIZE, IMG_SIZE)
-    test_ds = create_dataset(test_df, IMAGE_DIR, BATCH_SIZE, IMG_SIZE)
+    train_ds = tf.data.Dataset.from_tensor_slices((
+        train_df['filename'].values,
+        train_df[['x', 'y', 'distance']].values.astype('float32')
+    )).shuffle(1000).map(preprocess).batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
     
-    # Build model
-    model = build_resnet_regression(learning_rate=LEARNING_RATE)
-    print(f"✅ Model built with learning rate {LEARNING_RATE}")
+    val_ds = tf.data.Dataset.from_tensor_slices((
+        val_df['filename'].values,
+        val_df[['x', 'y', 'distance']].values.astype('float32')
+    )).map(preprocess).batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
     
-    # Train
     Path("models").mkdir(exist_ok=True)
     Path("logs").mkdir(exist_ok=True)
+    model = build_resnet_regression(learning_rate=LR)
     
-    model.fit(
-        train_ds,
-        epochs=EPOCHS,
+    history = model.fit(
+        train_ds, 
         validation_data=val_ds,
+        epochs=EPOCHS, 
         callbacks=[
-            tf.keras.callbacks.ModelCheckpoint(MODEL_PATH, save_best_only=True),
-            tf.keras.callbacks.EarlyStopping(patience=3, restore_best_weights=True),
+            tf.keras.callbacks.ModelCheckpoint("models/resnet_docking.h5", save_best_only=True, monitor='val_loss'),
+            tf.keras.callbacks.EarlyStopping(patience=5, restore_best_weights=True, monitor='val_loss'),
             tf.keras.callbacks.CSVLogger("logs/training_history.csv")
         ]
     )
     
-    # Evaluate
-    print("\n📊 Evaluating on test set...")
-    results = model.evaluate(test_ds)
-    print(f"✅ Test results: {dict(zip(model.metrics_names, results))}")
-    print(f"💾 Model saved: {MODEL_PATH}")
-
+    print(f"\n Final Training | Loss: {history.history['loss'][-1]:.4f} | RMSE X: {history.history['rmse_x'][-1]:.4f} | Y: {history.history['rmse_y'][-1]:.4f} | Dist: {history.history['rmse_dist'][-1]:.4f}")
+    print(f" Final Validation | Loss: {history.history['val_loss'][-1]:.4f} | RMSE X: {history.history['val_rmse_x'][-1]:.4f} | Y: {history.history['val_rmse_y'][-1]:.4f} | Dist: {history.history['val_rmse_dist'][-1]:.4f}")
+    print(" Model saved to models/resnet_docking.h5")
 
 if __name__ == "__main__":
     tf.random.set_seed(42)
