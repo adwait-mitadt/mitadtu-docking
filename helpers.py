@@ -699,6 +699,56 @@ def create_single_dataset(df, image_folder, batch_size=32, target_size=(224, 224
         print(f"❌ Error creating dataset: {e}")
         return None
 
+
+def create_docking_datasets(train_df, val_df, image_folder, batch_size=32, 
+                            target_size=(224, 224), normalize_by=512.0):
+    """
+    Create TensorFlow datasets for ISS docking (x, y, distance regression).
+    
+    Args:
+        train_df (pd.DataFrame): Training dataframe with filename, x, y, distance columns
+        val_df (pd.DataFrame): Validation dataframe with filename, x, y, distance columns
+        image_folder (str): Path to folder containing images
+        batch_size (int): Batch size for training
+        target_size (tuple): Target image size (width, height)
+        normalize_by (float): Value to normalize coordinates and distance by
+    
+    Returns:
+        tuple: (train_dataset, val_dataset)
+    """
+    try:
+        import tensorflow as tf
+        
+        def preprocess(filename, labels):
+            img = tf.io.read_file(tf.strings.join([str(image_folder) + "/", filename]))
+            img = tf.image.decode_jpeg(img, channels=3)
+            img = tf.image.resize(img, target_size)
+            return tf.cast(img, tf.float32) / 255.0, labels / normalize_by
+        
+        train_ds = tf.data.Dataset.from_tensor_slices((
+            train_df['filename'].values,
+            train_df[['x', 'y', 'distance']].values.astype('float32')
+        )).shuffle(1000).map(preprocess).batch(batch_size).prefetch(tf.data.AUTOTUNE)
+        
+        val_ds = tf.data.Dataset.from_tensor_slices((
+            val_df['filename'].values,
+            val_df[['x', 'y', 'distance']].values.astype('float32')
+        )).map(preprocess).batch(batch_size).prefetch(tf.data.AUTOTUNE)
+        
+        print(f"✅ Docking datasets created:")
+        print(f"   Training samples: {len(train_df)}")
+        print(f"   Validation samples: {len(val_df)}")
+        print(f"   Batch size: {batch_size}")
+        
+        return train_ds, val_ds
+        
+    except ImportError:
+        print("❌ TensorFlow not found. Please install: pip install tensorflow")
+        return None, None
+    except Exception as e:
+        print(f"❌ Error creating docking datasets: {e}")
+        return None, None
+
 def train_model(model, train_generator, val_generator, steps_per_epoch, validation_steps, epochs=50):
     """
     Train the model with the given data generators.

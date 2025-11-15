@@ -3,81 +3,103 @@ import pandas as pd
 import tensorflow as tf
 from pathlib import Path
 from resnet_model import build_resnet_regression
+from helpers import create_docking_datasets
 
-BATCH_SIZE, EPOCHS, LR = 32, 70, 1e-4
-LOAD_MODEL = "models/resnet_docking_epoch_100.h5"  # Load 100th epoch model
-INITIAL_EPOCH = 100  # Continue from epoch 100
+BATCH_SIZE, EPOCHS, LR = 32, 200, 1e-4
+CHECKPOINT_DIR = "checkpoints"  # Directory for TF checkpoints
 
 def main():
-    print(" Training ISS Docking Model (Continuing from Epoch 100)")
+    # Configure GPU
+    gpus = tf.config.list_physical_devices('GPU')
+    if gpus:
+        try:
+            for gpu in gpus:
+                tf.config.experimental.set_memory_growth(gpu, True)
+            print(f" GPU(s) available and configured: {len(gpus)} GPU(s)")
+        except RuntimeError as e:
+            print(f" GPU configuration error: {e}")
+    else:
+        print(" No GPU found. Training on CPU.")
+    
+    print(" Training ISS Docking Model (Starting from Scratch)")
     train_df = pd.read_csv("data/train_split.csv")
     val_df = pd.read_csv("data/val_split.csv")
     print(f" {len(train_df)} training samples")
     print(f" {len(val_df)} validation samples")
     
-    def preprocess(filename, labels):
-        img = tf.io.read_file(tf.strings.join(["data/train/", filename]))
-        img = tf.image.decode_jpeg(img, channels=3)
-        img = tf.image.resize(img, (224, 224))
-        return tf.cast(img, tf.float32) / 255.0, labels / [512.0, 512.0, 512.0]
-    
-    train_ds = tf.data.Dataset.from_tensor_slices((
-        train_df['filename'].values,
-        train_df[['x', 'y', 'distance']].values.astype('float32')
-    )).shuffle(1000).map(preprocess).batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
-    
-    val_ds = tf.data.Dataset.from_tensor_slices((
-        val_df['filename'].values,
-        val_df[['x', 'y', 'distance']].values.astype('float32')
-    )).map(preprocess).batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
+    # Create datasets using helper function
+    train_ds, val_ds = create_docking_datasets(
+        train_df, val_df, 
+        image_folder="data/train",
+        batch_size=BATCH_SIZE,
+        target_size=(224, 224),
+        normalize_by=512.0
+    )
     
     Path("models").mkdir(exist_ok=True)
     Path("logs").mkdir(exist_ok=True)
+    Path(CHECKPOINT_DIR).mkdir(exist_ok=True)
     
-    # Load the 100th epoch model without compiling
-    print(f"\n Loading model from {LOAD_MODEL}...")
-    model = tf.keras.models.load_model(LOAD_MODEL, compile=False)
-    print(f" Model loaded successfully!")
-    print(f" Continuing training from epoch {INITIAL_EPOCH} to {INITIAL_EPOCH + EPOCHS}")
+    # Build model (already compiled with optimizer and metrics in resnet_model.py)
+    model = build_resnet_regression(learning_rate=LR)
     
-    # Custom RMSE metric for each output
-    def rmse_x(y_true, y_pred):
-        return tf.sqrt(tf.reduce_mean(tf.square(y_true[:, 0] - y_pred[:, 0])))
-    
-    def rmse_y(y_true, y_pred):
-        return tf.sqrt(tf.reduce_mean(tf.square(y_true[:, 1] - y_pred[:, 1])))
-    
-    def rmse_dist(y_true, y_pred):
-        return tf.sqrt(tf.reduce_mean(tf.square(y_true[:, 2] - y_pred[:, 2])))
-    
-    def total_loss(y_true, y_pred):
-        return rmse_x(y_true, y_pred) + rmse_y(y_true, y_pred) + rmse_dist(y_true, y_pred)
-    
-    # Compile with same settings
-    model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=LR),
-        loss=total_loss,
-        metrics=[rmse_x, rmse_y, rmse_dist, total_loss]
+    # Create checkpoint to save model AND optimizer state
+    checkpoint = tf.train.Checkpoint(model=model, optimizer=model.optimizer, epoch=tf.Variable(0))
+    checkpoint_manager = tf.train.CheckpointManager(
+        checkpoint, 
+        directory=CHECKPOINT_DIR, 
+        max_to_keep=5
     )
+    
+    # Try to restore from latest checkpoint
+    initial_epoch = 0
+    if checkpoint_manager.latest_checkpoint:
+        checkpoint.restore(checkpoint_manager.latest_checkpoint)
+        initial_epoch = int(checkpoint.epoch.numpy())
+        print(f"\n Restored from checkpoint: {checkpoint_manager.latest_checkpoint}")
+        print(f" Resuming training from epoch {initial_epoch} to {EPOCHS}")
+    else:
+        print(f"\n No checkpoint found. Starting fresh training from epoch 0 for {EPOCHS} epochs.")
+    
+    # Custom callback to save checkpoint with optimizer state
+    class CheckpointCallback(tf.keras.callbacks.Callback):
+        def __init__(self, checkpoint, checkpoint_manager, checkpoint_var):
+            super().__init__()
+            self.checkpoint = checkpoint
+            self.checkpoint_manager = checkpoint_manager
+            self.checkpoint_var = checkpoint_var
+            
+        def on_epoch_end(self, epoch, logs=None):
+            # Update the epoch variable in checkpoint
+            self.checkpoint_var.assign(epoch + 1)
+            # Save checkpoint every 5 epochs
+            if (epoch + 1) % 5 == 0:
+                save_path = self.checkpoint_manager.save()
+                print(f"\n Checkpoint saved at epoch {epoch + 1}: {save_path}")
+    
+    # Custom callback to save H5 model every 5 epochs
+    class ModelCheckpointEvery5(tf.keras.callbacks.Callback):
+        def on_epoch_end(self, epoch, logs=None):
+            if (epoch + 1) % 5 == 0:
+                filepath = f"models/resnet_docking_epoch_{epoch + 1:03d}.h5"
+                self.model.save(filepath)
+                print(f" Model saved: {filepath}")
     
     history = model.fit(
         train_ds, 
         validation_data=val_ds,
-        epochs=INITIAL_EPOCH + EPOCHS,
-        initial_epoch=INITIAL_EPOCH,
+        epochs=EPOCHS,
+        initial_epoch=initial_epoch,
         callbacks=[
-            tf.keras.callbacks.ModelCheckpoint(
-                "models/resnet_docking_epoch_{epoch:03d}.h5", 
-                save_freq=5,
-                save_best_only=False
-            ),
+            CheckpointCallback(checkpoint, checkpoint_manager, checkpoint.epoch),
+            ModelCheckpointEvery5(),
             tf.keras.callbacks.ModelCheckpoint(
                 "models/resnet_docking_best.h5", 
                 save_best_only=True, 
                 monitor='val_loss',
                 verbose=1
             ),
-            tf.keras.callbacks.EarlyStopping(patience=3, restore_best_weights=True, monitor='val_loss'),
+            # tf.keras.callbacks.EarlyStopping(patience=5, restore_best_weights=True, monitor='val_loss'),
             tf.keras.callbacks.CSVLogger("logs/training_history.csv", append=True)
         ]
     )
