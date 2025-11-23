@@ -7,17 +7,17 @@ import tensorflow as tf
 
 def build_resnet_regression(learning_rate=1e-4):
     # Custom RMSE metrics for each output
-    def total_loss(y_true, y_pred):
-        return (rmse_x(y_true, y_pred) + rmse_y(y_true, y_pred) + rmse_dist(y_true, y_pred)) / 3
-
     def rmse_x(y_true, y_pred):
-        return tf.math.sqrt(tf.math.reduce_mean(tf.math.square(y_pred[:, 0] - y_true[:, 0])))
+        return tf.sqrt(tf.reduce_mean(tf.square(y_pred[:, 0] - y_true[:, 0])))
 
     def rmse_y(y_true, y_pred):
-        return tf.math.sqrt(tf.math.reduce_mean(tf.math.square(y_pred[:, 1] - y_true[:, 1])))
+        return tf.sqrt(tf.reduce_mean(tf.square(y_pred[:, 1] - y_true[:, 1])))
 
     def rmse_dist(y_true, y_pred):
-        return tf.math.sqrt(tf.math.reduce_mean(tf.math.square(y_pred[:, 2] - y_true[:, 2])))
+        return tf.sqrt(tf.reduce_mean(tf.square(y_pred[:, 2] - y_true[:, 2])))
+    
+    def total_loss(y_true, y_pred):
+        return (rmse_x(y_true, y_pred) + rmse_y(y_true, y_pred) + rmse_dist(y_true, y_pred)) / 3.0
 
     input_shape = (224, 224, 3)
     base_model = ResNet50(weights="imagenet", include_top=False, input_shape=input_shape)
@@ -25,10 +25,10 @@ def build_resnet_regression(learning_rate=1e-4):
 
     x = base_model.output
     x = GlobalAveragePooling2D()(x)
-    x = Dense(512, activation="relu")(x)
-    x = Dense(128, activation="relu")(x)
-    x = Dense(32, activation="relu")(x)
-    outputs = Dense(3, activation="relu")(x)  # Regression output: x, y, distance
+    x = Dense(512, activation="softplus")(x)
+    x = Dense(256, activation="softplus")(x)
+    x = Dense(32, activation="softplus")(x)
+    outputs = Dense(3, activation="softplus")(x)  # Regression output: x, y, distance
 
     model = Model(inputs=base_model.input, outputs=outputs)
     optimizer = keras.optimizers.Adam(learning_rate=learning_rate)

@@ -51,15 +51,9 @@ def main():
         max_to_keep=5
     )
     
-    # Try to restore from latest checkpoint
+    # Train from scratch - do not restore checkpoints
     initial_epoch = 0
-    if checkpoint_manager.latest_checkpoint:
-        checkpoint.restore(checkpoint_manager.latest_checkpoint)
-        initial_epoch = int(checkpoint.epoch.numpy())
-        print(f"\n Restored from checkpoint: {checkpoint_manager.latest_checkpoint}")
-        print(f" Resuming training from epoch {initial_epoch} to {EPOCHS}")
-    else:
-        print(f"\n No checkpoint found. Starting fresh training from epoch 0 for {EPOCHS} epochs.")
+    print(f"\n Training from scratch for {EPOCHS} epochs with softplus activation.")
     
     # Custom callback to save checkpoint with optimizer state
     class CheckpointCallback(tf.keras.callbacks.Callback):
@@ -100,7 +94,7 @@ def main():
                 verbose=1
             ),
             # tf.keras.callbacks.EarlyStopping(patience=5, restore_best_weights=True, monitor='val_loss'),
-            tf.keras.callbacks.CSVLogger("logs/training_history.csv", append=True)
+            tf.keras.callbacks.CSVLogger("logs/training_history_softplus_256.csv", append=False)
         ]
     )
     
