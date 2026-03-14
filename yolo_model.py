@@ -16,6 +16,11 @@ except ImportError:
         "Install it with: pip install keras-cv"
     )
 
+# Default image dimensions for dummy forward pass during feature extraction
+_DUMMY_IMAGE_HEIGHT = 224
+_DUMMY_IMAGE_WIDTH = 224
+_DUMMY_IMAGE_CHANNELS = 3
+
 
 def build_yolo_detector(
     num_classes: int = 1,
@@ -109,7 +114,7 @@ def add_image_level_distance_head(
     - Estimating overall scene depth
     - Regression tasks that depend on global image features
 
-    IMPORTANT: The integrator must handle multi-output losses when training.
+    IMPORTANT: The caller (developer integrating this model) must handle multi-output losses when training.
     The model returns a dictionary with two keys:
     - "detections": the original YOLOv8 detection output
     - "distance": a single scalar distance prediction
@@ -151,7 +156,7 @@ def add_image_level_distance_head(
     # Extract features from backbone for distance head
     try:
         # Run a dummy forward pass to extract features
-        dummy_input = tf.zeros([1, 224, 224, 3])
+        dummy_input = tf.zeros([1, _DUMMY_IMAGE_HEIGHT, _DUMMY_IMAGE_WIDTH, _DUMMY_IMAGE_CHANNELS])
         backbone_features = detector.backbone(dummy_input)
 
         # Handle different output types (dict, list, or tensor)

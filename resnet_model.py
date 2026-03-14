@@ -5,6 +5,9 @@ from tensorflow.keras.models import Model
 import tensorflow as tf
 
 
+NUM_OUTPUTS = 3  # Number of regression outputs: x, y, distance
+
+
 def build_resnet_regression(learning_rate=1e-4):
     # Custom RMSE metrics for each output
     def rmse_x(y_true, y_pred):
@@ -17,7 +20,7 @@ def build_resnet_regression(learning_rate=1e-4):
         return tf.sqrt(tf.reduce_mean(tf.square(y_pred[:, 2] - y_true[:, 2])))
     
     def total_loss(y_true, y_pred):
-        return (rmse_x(y_true, y_pred) + rmse_y(y_true, y_pred) + rmse_dist(y_true, y_pred)) / 3.0
+        return (rmse_x(y_true, y_pred) + rmse_y(y_true, y_pred) + rmse_dist(y_true, y_pred)) / float(NUM_OUTPUTS)
 
     input_shape = (224, 224, 3)
     base_model = ResNet50(weights="imagenet", include_top=False, input_shape=input_shape)
