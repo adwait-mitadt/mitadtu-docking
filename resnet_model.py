@@ -5,10 +5,27 @@ from tensorflow.keras.models import Model
 import tensorflow as tf
 
 
-def build_resnet_regression(learning_rate=1e-4):
+def build_resnet_regression(
+    learning_rate=1e-4,
+    weight_x=0.35,
+    weight_y=1.20,
+    weight_dist=1.45,
+    bias_penalty_y=0.10,
+    bias_penalty_dist=0.15,
+):
     # Custom RMSE metrics for each output
     def total_loss(y_true, y_pred):
-        return (rmse_x(y_true, y_pred) + rmse_y(y_true, y_pred) + rmse_dist(y_true, y_pred)) / 3
+        weighted_rmse = (
+            weight_x * rmse_x(y_true, y_pred)
+            + weight_y * rmse_y(y_true, y_pred)
+            + weight_dist * rmse_dist(y_true, y_pred)
+        )
+
+        # Penalize consistent directional drift seen in evaluation.
+        y_bias_penalty = bias_penalty_y * tf.abs(tf.reduce_mean(y_pred[:, 1] - y_true[:, 1]))
+        dist_bias_penalty = bias_penalty_dist * tf.abs(tf.reduce_mean(y_pred[:, 2] - y_true[:, 2]))
+
+        return weighted_rmse + y_bias_penalty + dist_bias_penalty
 
     def rmse_x(y_true, y_pred):
         return tf.math.sqrt(tf.math.reduce_mean(tf.math.square(y_pred[:, 0] - y_true[:, 0])))
