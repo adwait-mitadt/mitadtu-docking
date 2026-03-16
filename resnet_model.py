@@ -12,6 +12,8 @@ def build_resnet_regression(
     weight_dist=1.45,
     bias_penalty_y=0.10,
     bias_penalty_dist=0.15,
+    pretrained=True,
+    freeze_backbone=True,
 ):
     # Custom RMSE metrics for each output
     def total_loss(y_true, y_pred):
@@ -37,8 +39,16 @@ def build_resnet_regression(
         return tf.math.sqrt(tf.math.reduce_mean(tf.math.square(y_pred[:, 2] - y_true[:, 2])))
 
     input_shape = (224, 224, 3)
-    base_model = ResNet50(weights="imagenet", include_top=False, input_shape=input_shape)
-    base_model.trainable = False  # Freeze all layers
+    weights = "imagenet" if pretrained else None
+    base_model = ResNet50(weights=weights, include_top=False, input_shape=input_shape)
+
+    # By default we freeze the ResNet backbone so only the added head is trained.
+    # Set `freeze_backbone=False` to fine-tune the backbone (or train from scratch).
+    if not pretrained and freeze_backbone:
+        # If starting from random init, we must train the backbone.
+        base_model.trainable = True
+    else:
+        base_model.trainable = not freeze_backbone
 
     x = base_model.output
     x = GlobalAveragePooling2D()(x)
