@@ -7,6 +7,7 @@ from helpers import create_docking_datasets
 
 BATCH_SIZE, EPOCHS, LR = 32, 200, 1e-4
 CHECKPOINT_DIR = "checkpoints"  # Directory for TF checkpoints
+BEST_WEIGHTS_PATH = "models/resnet_docking_best.weights.h5"
 
 def main():
     # Configure GPU
@@ -54,12 +55,21 @@ def main():
     # Try to restore from latest checkpoint
     initial_epoch = 0
     if checkpoint_manager.latest_checkpoint:
-        checkpoint.restore(checkpoint_manager.latest_checkpoint)
-        initial_epoch = int(checkpoint.epoch.numpy())
-        print(f"\n Restored from checkpoint: {checkpoint_manager.latest_checkpoint}")
-        print(f" Resuming training from epoch {initial_epoch} to {EPOCHS}")
+        try:
+            checkpoint.restore(checkpoint_manager.latest_checkpoint).expect_partial()
+            initial_epoch = int(checkpoint.epoch.numpy())
+            print(f"\n Restored from checkpoint: {checkpoint_manager.latest_checkpoint}")
+            print(f" Resuming training from epoch {initial_epoch} to {EPOCHS}")
+        except Exception as e:
+            print(f"\n Failed to restore checkpoint (likely architecture mismatch): {e}")
+            print(f" Starting fresh training from epoch 0 for {EPOCHS} epochs.")
     else:
         print(f"\n No checkpoint found. Starting fresh training from epoch 0 for {EPOCHS} epochs.")
+
+    if initial_epoch >= EPOCHS:
+        print(f"\n Checkpoint epoch ({initial_epoch}) is already >= configured EPOCHS ({EPOCHS}).")
+        print(" Increase EPOCHS to continue training, or clear checkpoints to restart from scratch.")
+        return
     
     # Custom callback to save checkpoint with optimizer state
     class CheckpointCallback(tf.keras.callbacks.Callback):
@@ -81,9 +91,9 @@ def main():
     class ModelCheckpointEvery5(tf.keras.callbacks.Callback):
         def on_epoch_end(self, epoch, logs=None):
             if (epoch + 1) % 5 == 0:
-                filepath = f"models/resnet_docking_epoch_{epoch + 1:03d}.h5"
-                self.model.save(filepath)
-                print(f" Model saved: {filepath}")
+                filepath = f"models/resnet_docking_epoch_{epoch + 1:03d}.weights.h5"
+                self.model.save_weights(filepath)
+                print(f" Weights saved: {filepath}")
     
     history = model.fit(
         train_ds, 
@@ -94,7 +104,8 @@ def main():
             CheckpointCallback(checkpoint, checkpoint_manager, checkpoint.epoch),
             ModelCheckpointEvery5(),
             tf.keras.callbacks.ModelCheckpoint(
-                "models/resnet_docking_best.h5", 
+                BEST_WEIGHTS_PATH,
+                save_weights_only=True,
                 save_best_only=True, 
                 monitor='val_loss',
                 verbose=1
@@ -103,11 +114,25 @@ def main():
             tf.keras.callbacks.CSVLogger("logs/training_history.csv", append=True)
         ]
     )
+
+    def _safe_last(history_dict, key):
+        values = history_dict.get(key, [])
+        return values[-1] if values else float('nan')
     
-    print(f"\n Final Training | Loss: {history.history['loss'][-1]:.4f} | RMSE X: {history.history['rmse_x'][-1]:.4f} | Y: {history.history['rmse_y'][-1]:.4f} | Dist: {history.history['rmse_dist'][-1]:.4f}")
-    print(f" Final Validation | Loss: {history.history['val_loss'][-1]:.4f} | RMSE X: {history.history['val_rmse_x'][-1]:.4f} | Y: {history.history['val_rmse_y'][-1]:.4f} | Dist: {history.history['val_rmse_dist'][-1]:.4f}")
-    print(f"\n Best model saved to models/resnet_docking_best.h5")
-    print(f" Checkpoint models saved every 5 epochs in models/")
+    print(
+        f"\n Final Training | Loss: {_safe_last(history.history, 'loss'):.4f}"
+        f" | RMSE X: {_safe_last(history.history, 'rmse_x'):.4f}"
+        f" | Y: {_safe_last(history.history, 'rmse_y'):.4f}"
+        f" | Dist: {_safe_last(history.history, 'rmse_dist'):.4f}"
+    )
+    print(
+        f" Final Validation | Loss: {_safe_last(history.history, 'val_loss'):.4f}"
+        f" | RMSE X: {_safe_last(history.history, 'val_rmse_x'):.4f}"
+        f" | Y: {_safe_last(history.history, 'val_rmse_y'):.4f}"
+        f" | Dist: {_safe_last(history.history, 'val_rmse_dist'):.4f}"
+    )
+    print(f"\n Best weights saved to {BEST_WEIGHTS_PATH}")
+    print(" Checkpoint weights saved every 5 epochs in models/")
 
 
 if __name__ == "__main__":

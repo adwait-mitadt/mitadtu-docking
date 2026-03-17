@@ -50,3 +50,8 @@ advanced_3d_trajectory_analysis.png
 comprehensive_3d_trajectory_analysis.csv
 example_usage.py
 realistic_docking_profile.png
+
+# Ignore large training checkpoints and logs
+checkpoints/
+checkpoints_old_arch/
+logs/
