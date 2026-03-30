@@ -1,7 +1,8 @@
 from tensorflow import keras
 from tensorflow.keras.applications import ResNet50
-from tensorflow.keras.layers import GlobalAveragePooling2D, Dense
+from tensorflow.keras.layers import GlobalAveragePooling2D, Dense, Dropout, BatchNormalization
 from tensorflow.keras.models import Model
+from tensorflow.keras.regularizers import L2
 import tensorflow as tf
 
 
@@ -14,6 +15,8 @@ def build_resnet_regression(
     bias_penalty_dist=0.15,
     pretrained=True,
     freeze_backbone=True,
+    dropout_rate=0.4,
+    l2_regularization=1e-4,
 ):
     # Custom RMSE metrics for each output
     def total_loss(y_true, y_pred):
@@ -52,10 +55,24 @@ def build_resnet_regression(
 
     x = base_model.output
     x = GlobalAveragePooling2D()(x)
-    x = Dense(512, activation="relu")(x)
-    x = Dense(128, activation="relu")(x)
-    x = Dense(32, activation="relu")(x)
-    outputs = Dense(3, activation="relu")(x)  # Regression output: x, y, distance
+    
+    # Add regularized dense layers with batch normalization and dropout
+    x = Dense(512, activation="relu", kernel_regularizer=L2(l2_regularization))(x)
+    x = BatchNormalization()(x)
+    x = Dropout(dropout_rate)(x)
+    
+    x = Dense(256, activation="relu", kernel_regularizer=L2(l2_regularization))(x)
+    x = BatchNormalization()(x)
+    x = Dropout(dropout_rate)(x)
+    
+    x = Dense(128, activation="relu", kernel_regularizer=L2(l2_regularization))(x)
+    x = BatchNormalization()(x)
+    x = Dropout(dropout_rate * 0.5)(x)
+    
+    x = Dense(64, activation="relu", kernel_regularizer=L2(l2_regularization))(x)
+    x = Dropout(dropout_rate * 0.3)(x)
+    
+    outputs = Dense(3, activation="relu", kernel_regularizer=L2(l2_regularization))(x)  # Regression output: x, y, distance
 
     model = Model(inputs=base_model.input, outputs=outputs)
     optimizer = keras.optimizers.Adam(learning_rate=learning_rate)
