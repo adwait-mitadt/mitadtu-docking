@@ -116,7 +116,12 @@ def plot_explanations(
     plt.tight_layout()
 
     if save_path:
-        fig.savefig(save_path, dpi=150, bbox_inches="tight")
+        fig.sa<<<<<<< HEAD
+    return fig
+=======
+    return fig
+>>>>>>> origin/main
+, dpi=150, bbox_inches="tight")
 
     if show_plot:
         plt.show()

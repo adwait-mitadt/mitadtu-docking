@@ -599,7 +599,7 @@ def create_single_dataset(df, image_folder, batch_size=32, target_size=(224, 224
 def create_docking_datasets(train_df, val_df, image_folder, batch_size=32, 
                             target_size=(224, 224), normalize_by=512.0, augment=False):
     """
-    Create TensorFlow datasets for ISS docking (x, y, distance regression).
+    Create TensorFlow datasets for ISS docking (x, y, distance regression) with optional augmentation.
     
     Args:
         train_df (pd.DataFrame): Training dataframe with filename, x, y, distance columns
@@ -608,6 +608,7 @@ def create_docking_datasets(train_df, val_df, image_folder, batch_size=32,
         batch_size (int): Batch size for training
         target_size (tuple): Target image size (width, height)
         normalize_by (float): Value to normalize coordinates and distance by
+        augment (bool): Whether to apply data augmentation to training set
     
     Returns:
         tuple: (train_dataset, val_dataset)
@@ -624,14 +625,25 @@ def create_docking_datasets(train_df, val_df, image_folder, batch_size=32,
         train_ds = tf.data.Dataset.from_tensor_slices((
             train_df['filename'].values,
             train_df[['x', 'y', 'distance']].values.astype('float32')
-        )).shuffle(1000).map(preprocess).batch(batch_size).prefetch(tf.data.AUTOTUNE)
+        )).shuffle(1000).map(preprocess)
         
+        # Apply augmentation to training set if enabled
+        if augment:
+            train_ds = (train_base
+                       .map(augment_image, num_parallel_calls=tf.data.AUTOTUNE)
+                       .batch(batch_size)
+                       .prefetch(tf.data.AUTOTUNE))
+        else:
+            train_ds = train_base.batch(batch_size).prefetch(tf.data.AUTOTUNE)
+        
+        # Validation dataset (no augmentation)
         val_ds = tf.data.Dataset.from_tensor_slices((
             val_df['filename'].values,
             val_df[['x', 'y', 'distance']].values.astype('float32')
         )).map(preprocess).batch(batch_size).prefetch(tf.data.AUTOTUNE)
         
-        print(f"✅ Docking datasets created:")
+        augmentation_status = "with augmentation" if augment else "without augmentation"
+        print(f"✅ Docking datasets created {augmentation_status}:")
         print(f"   Training samples: {len(train_df)}")
         print(f"   Validation samples: {len(val_df)}")
         print(f"   Batch size: {batch_size}")
