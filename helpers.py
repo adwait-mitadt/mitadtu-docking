@@ -1,6 +1,7 @@
 # ISS Docking Analysis Helper Functions
 # Helper functions for ISS docking image analysis and preprocessing
 
+import time
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -169,25 +170,37 @@ def show_image(image_id):
 plot_image_with_distance_crosshair = show_image
 
 
-def load_image(image_path, convert_to_rgb=True):
+def load_image(image_path, convert_to_rgb=True, max_retries=3, retry_delay=0.5):
     """
-    Load an image from file path using OpenCV.
+    Load an image from file path using OpenCV, with retry logic for transient failures.
     
     Args:
-        image_path (str): Path to the image file
+        image_path (str or Path): Path to the image file
         convert_to_rgb (bool): Convert from BGR to RGB (default: True)
+        max_retries (int): Maximum number of retry attempts on failure (default: 3)
+        retry_delay (float): Delay in seconds between retries (default: 0.5)
         
     Returns:
-        numpy.ndarray: Loaded image array, or None if loading fails
+        numpy.ndarray: Loaded image array, or None if loading fails after all retries
     """
-    try:
-        image = cv2.imread(image_path)
-        if image is not None and convert_to_rgb:
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        return image
-    except Exception as e:
-        print(f"Error loading image {image_path}: {e}")
-        return None
+    last_error = None
+    for attempt in range(max_retries + 1):
+        try:
+            image = cv2.imread(str(image_path))
+            if image is not None:
+                if convert_to_rgb:
+                    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                return image
+        except Exception as e:
+            last_error = e
+        # Image not loaded (None result or exception); retry if attempts remain
+        if attempt < max_retries:
+            time.sleep(retry_delay)
+    if last_error is not None:
+        print(f"Error loading image {image_path}: {last_error}")
+    else:
+        print(f"Warning: Could not read image {image_path} after {max_retries} retries")
+    return None
 
 
 def resize_image(image_array, width, height):
@@ -267,7 +280,7 @@ def display_image(image_array, title=None, figsize=(6, 6)):
 
 def load_and_preprocess_images(csv_file, image_folder, target_size=(224, 224), 
                                normalize=True, mean=[0.485, 0.456, 0.406], 
-                               std=[0.229, 0.224, 0.225]):
+                               std=[0.229, 0.224, 0.225], max_retries=3, retry_delay=1.0):
     """
     Load, resize, and optionally normalize images from CSV file.
     
@@ -278,6 +291,8 @@ def load_and_preprocess_images(csv_file, image_folder, target_size=(224, 224),
         normalize (bool): Whether to normalize images (default: True)
         mean (list): Mean values for normalization (default: ImageNet mean)
         std (list): Standard deviation for normalization (default: ImageNet std)
+        max_retries (int): Maximum retry attempts for failed image loads (default: 3)
+        retry_delay (float): Delay in seconds between retries (default: 1.0)
         
     Returns:
         tuple: (images_array, locations_array, distances_array, image_ids)
@@ -297,8 +312,8 @@ def load_and_preprocess_images(csv_file, image_folder, target_size=(224, 224),
         image_id = row['ImageID']
         image_path = f"{image_folder}/{image_id}.jpg"
         
-        # Load image
-        image = load_image(image_path, convert_to_rgb=True)
+        # Load image with retry logic
+        image = load_image(image_path, convert_to_rgb=True, max_retries=max_retries, retry_delay=retry_delay)
         
         if image is not None:
             # Resize to target size
@@ -324,7 +339,7 @@ def load_and_preprocess_images(csv_file, image_folder, target_size=(224, 224),
             distances.append(row['distance'])
         else:
             failed_loads.append(image_id)
-            print(f"Warning: Could not load image {image_id}")
+            print(f"Warning: Could not load image {image_id} after {max_retries} retries")
         
         # Progress indicator
         if (idx + 1) % 1000 == 0:
