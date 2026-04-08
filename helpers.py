@@ -7,8 +7,11 @@ import matplotlib.pyplot as plt
 import cv2
 import ast
 from pathlib import Path
-from sklearn.preprocessing import MinMaxScaler
-import pickle
+try:
+    from preprocessing import preprocess_image_pixels
+except ImportError:
+    def preprocess_image_pixels(image):
+        return image / 255.0
 
 # Setting paths using pathlib
 data_path = Path("data/")
@@ -19,18 +22,29 @@ inputs_directory_path = data_path / "train"
 target_data = pd.read_csv(target_path)
 
 
-def load_image(image_id):
-    """
-    Load and return the image for given image_id
-    
+def load_image(image_id_or_path, convert_to_rgb=True):
+    """Load an image either by dataset ImageID or from an explicit file path.
+
     Args:
-        image_id: The ID of the image to load (integer)
-        
+        image_id_or_path: int ImageID (loads from data/train) OR a str/Path to an image file.
+        convert_to_rgb (bool): When loading from a file path via OpenCV, convert BGR->RGB.
+
     Returns:
-        numpy.ndarray: The loaded image array
+        numpy.ndarray: Loaded image array, or None if loading fails.
     """
-    image_file = inputs_directory_path / f"{image_id}.jpg"
-    return plt.imread(image_file)
+    try:
+        if isinstance(image_id_or_path, (int, np.integer)):
+            image_file = inputs_directory_path / f"{int(image_id_or_path)}.jpg"
+            return plt.imread(image_file)
+
+        image_path = Path(image_id_or_path)
+        image = cv2.imread(str(image_path))
+        if image is not None and convert_to_rgb:
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        return image
+    except Exception as e:
+        print(f"Error loading image {image_id_or_path}: {e}")
+        return None
 
 
 def load_target_row(image_id):
@@ -169,27 +183,6 @@ def show_image(image_id):
 plot_image_with_distance_crosshair = show_image
 
 
-def load_image(image_path, convert_to_rgb=True):
-    """
-    Load an image from file path using OpenCV.
-    
-    Args:
-        image_path (str): Path to the image file
-        convert_to_rgb (bool): Convert from BGR to RGB (default: True)
-        
-    Returns:
-        numpy.ndarray: Loaded image array, or None if loading fails
-    """
-    try:
-        image = cv2.imread(image_path)
-        if image is not None and convert_to_rgb:
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        return image
-    except Exception as e:
-        print(f"Error loading image {image_path}: {e}")
-        return None
-
-
 def resize_image(image_array, width, height):
     """
     Resize an image array to specified dimensions using OpenCV.
@@ -213,41 +206,6 @@ def resize_image(image_array, width, height):
         return None
 
 
-def normalize_image(image_array, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
-    """
-    Normalize image using ImageNet statistics or custom mean/std values.
-    
-    Args:
-        image_array (numpy.ndarray): Image array with values in [0, 255] or [0, 1]
-        mean (list): Mean values for R, G, B channels (default: ImageNet mean)
-        std (list): Standard deviation values for R, G, B channels (default: ImageNet std)
-        
-    Returns:
-        numpy.ndarray: Normalized image array
-        
-    Note:
-        - If image is in [0, 255], it will first be scaled to [0, 1]
-        - Then normalized using: (image - mean) / std
-        - Default values are ImageNet normalization statistics
-    """
-    try:
-        # Convert to float and ensure values are in [0, 1]
-        if image_array.max() > 1.0:
-            image_array = image_array / 255.0
-        
-        # Convert mean and std to numpy arrays
-        mean = np.array(mean, dtype=np.float32)
-        std = np.array(std, dtype=np.float32)
-        
-        # Normalize: (image - mean) / std
-        normalized_image = (image_array - mean) / std
-        
-        return normalized_image.astype(np.float32)
-    except Exception as e:
-        print(f"Error normalizing image: {e}")
-        return None
-
-
 def display_image(image_array, title=None, figsize=(6, 6)):
     """
     Display an image array using matplotlib.
@@ -265,19 +223,16 @@ def display_image(image_array, title=None, figsize=(6, 6)):
     plt.show()
 
 
-def load_and_preprocess_images(csv_file, image_folder, target_size=(224, 224), 
-                               normalize=True, mean=[0.485, 0.456, 0.406], 
-                               std=[0.229, 0.224, 0.225]):
+def load_and_preprocess_images(csv_file, image_folder, target_size=(224, 224)):
     """
-    Load, resize, and optionally normalize images from CSV file.
+    Load, resize, and preprocess images from CSV file.
+
+    Canonical preprocessing is ONLY pixel scaling: image / 255.0.
     
     Args:
         csv_file (str): Path to CSV file containing ImageIDs
         image_folder (str): Folder containing the images
         target_size (tuple): Target size for resizing (width, height)
-        normalize (bool): Whether to normalize images (default: True)
-        mean (list): Mean values for normalization (default: ImageNet mean)
-        std (list): Standard deviation for normalization (default: ImageNet std)
         
     Returns:
         tuple: (images_array, locations_array, distances_array, image_ids)
@@ -304,12 +259,7 @@ def load_and_preprocess_images(csv_file, image_folder, target_size=(224, 224),
             # Resize to target size
             resized_image = resize_image(image, target_size[0], target_size[1])
             
-            # Normalize if requested
-            if normalize:
-                processed_image = normalize_image(resized_image, mean=mean, std=std)
-            else:
-                # Just scale to [0, 1] if not normalizing
-                processed_image = resized_image / 255.0 if resized_image.max() > 1 else resized_image
+            processed_image = preprocess_image_pixels(resized_image)
             
             images.append(processed_image)
             image_ids.append(image_id)
@@ -343,10 +293,11 @@ def load_and_preprocess_images(csv_file, image_folder, target_size=(224, 224),
 
 
 def process_and_save_image(image_id, image_path, coords, output_folder="data/processed/images",
-                          target_size=(224, 224), normalize=True,
-                          mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
+                          target_size=(224, 224)):
     """
-    Load, preprocess (resize & normalize), and save a single image with its metadata.
+    Load and preprocess (resize + scale pixels) and save a single image with its metadata.
+
+    Canonical preprocessing is ONLY pixel scaling: image / 255.0.
     
     Args:
         image_id (int/str): Unique identifier for the image
@@ -354,9 +305,6 @@ def process_and_save_image(image_id, image_path, coords, output_folder="data/pro
         coords (tuple): (x, y) coordinates of the docking target
         output_folder (str): Folder to save processed images
         target_size (tuple): Target size (width, height) for resizing
-        normalize (bool): Whether to normalize the image
-        mean (list): Mean values for normalization (RGB channels)
-        std (list): Standard deviation for normalization (RGB channels)
     
     Returns:
         dict: Metadata about the processed image
@@ -379,12 +327,7 @@ def process_and_save_image(image_id, image_path, coords, output_folder="data/pro
     # Resize image
     resized_image = resize_image(image, target_size[0], target_size[1])
     
-    # Normalize if requested
-    if normalize:
-        processed_image = normalize_image(resized_image, mean=mean, std=std)
-    else:
-        # Just scale to [0, 1]
-        processed_image = resized_image / 255.0 if resized_image.max() > 1 else resized_image
+    processed_image = preprocess_image_pixels(resized_image)
     
     # Calculate scaled coordinates
     scale_x = target_size[0] / original_size[1]  # width scale
@@ -402,7 +345,7 @@ def process_and_save_image(image_id, image_path, coords, output_folder="data/pro
         'processed_size': target_size,
         'original_coords': coords,
         'scaled_coords': scaled_coords,
-        'normalized': normalize,
+        'pixel_scaled_0_1': True,
         'save_path': str(save_path)
     }
     
@@ -411,8 +354,7 @@ def process_and_save_image(image_id, image_path, coords, output_folder="data/pro
 
 def batch_process_and_save_images(csv_file, image_folder, output_folder="data/processed/images",
                                   metadata_file="data/processed/metadata/metadata.csv",
-                                  target_size=(224, 224), normalize=True,
-                                  mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
+                                  target_size=(224, 224)):
     """
     Batch process all images from CSV and save them to the processed folder.
     
@@ -422,10 +364,6 @@ def batch_process_and_save_images(csv_file, image_folder, output_folder="data/pr
         output_folder (str): Folder to save processed images
         metadata_file (str): Path to save metadata CSV
         target_size (tuple): Target size (width, height) for resizing
-        normalize (bool): Whether to normalize images
-        mean (list): Mean values for normalization
-        std (list): Standard deviation for normalization
-    
     Returns:
         pd.DataFrame: Metadata for all processed images
     """
@@ -449,7 +387,7 @@ def batch_process_and_save_images(csv_file, image_folder, output_folder="data/pr
     print(f"   Input: {image_folder}")
     print(f"   Output: {output_folder}")
     print(f"   Target size: {target_size}")
-    print(f"   Normalize: {normalize}")
+    print("   Preprocessing: pixel scaling only (image/255.0)")
     print("="*60)
     
     for idx, row in data.iterrows():
@@ -469,10 +407,7 @@ def batch_process_and_save_images(csv_file, image_folder, output_folder="data/pr
             image_path=image_path,
             coords=coords,
             output_folder=output_folder,
-            target_size=target_size,
-            normalize=normalize,
-            mean=mean,
-            std=std
+            target_size=target_size
         )
         
         if metadata:
@@ -551,45 +486,6 @@ def load_processed_images(metadata_file="data/processed/metadata/metadata.csv",
 # TENSORFLOW/KERAS MODEL FUNCTIONS
 # =============================================
 
-def build_resnet_regression():
-    """
-    Build ResNet50-based regression model for coordinate prediction.
-    
-    Returns:
-        tensorflow.keras.Model: Compiled ResNet model for (x,y) coordinate prediction
-    """
-    try:
-        import tensorflow as tf
-        from tensorflow.keras.applications import ResNet50
-        from tensorflow.keras.layers import GlobalAveragePooling2D, Dense, Dropout
-        from tensorflow.keras.models import Model
-        
-        print("🤖 Building ResNet50 regression model...")
-        
-        input_shape = (224, 224, 3)
-        base_model = ResNet50(weights="imagenet", include_top=False, input_shape=input_shape)
-        base_model.trainable = False  # Freeze all layers
-
-        x = base_model.output
-        x = GlobalAveragePooling2D()(x)
-        x = Dense(256, activation="relu")(x)
-        x = Dropout(0.5)(x)
-        outputs = Dense(2, activation="linear")(x)  # Regression output: x, y
-
-        model = Model(inputs=base_model.input, outputs=outputs)
-        optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4)
-        model.compile(optimizer=optimizer, loss="mse", metrics=["mae"])
-        
-        print("✅ ResNet50 model built successfully!")
-        return model
-        
-    except ImportError:
-        print("❌ TensorFlow not found. Please install: pip install tensorflow")
-        return None
-    except Exception as e:
-        print(f"❌ Error building model: {e}")
-        return None
-
 def create_data_generators(train_df, val_df, image_folder, batch_size=32, target_size=(224, 224)):
     """
     Create data generators for training and validation.
@@ -613,7 +509,7 @@ def create_data_generators(train_df, val_df, image_folder, batch_size=32, target
             image = tf.io.read_file(image_path)
             image = tf.image.decode_jpeg(image, channels=3)
             image = tf.image.resize(image, target_size)
-            image = tf.cast(image, tf.float32) / 255.0
+            image = preprocess_image_pixels(image)
             
             # Normalize coordinates to [0, 1] range based on image size
             coords_normalized = coords / [target_size[0], target_size[1]]
@@ -674,7 +570,7 @@ def create_single_dataset(df, image_folder, batch_size=32, target_size=(224, 224
             image = tf.io.read_file(image_path)
             image = tf.image.decode_jpeg(image, channels=3)
             image = tf.image.resize(image, target_size)
-            image = tf.cast(image, tf.float32) / 255.0
+            image = preprocess_image_pixels(image)
             
             # Normalize coordinates to [0, 1] range based on image size
             coords_normalized = coords / [target_size[0], target_size[1]]
@@ -701,7 +597,7 @@ def create_single_dataset(df, image_folder, batch_size=32, target_size=(224, 224
 
 
 def create_docking_datasets(train_df, val_df, image_folder, batch_size=32, 
-                            target_size=(224, 224), normalize_by=512.0):
+                            target_size=(224, 224), normalize_by=512.0, augment=False):
     """
     Create TensorFlow datasets for ISS docking (x, y, distance regression).
     
@@ -723,7 +619,7 @@ def create_docking_datasets(train_df, val_df, image_folder, batch_size=32,
             img = tf.io.read_file(tf.strings.join([str(image_folder) + "/", filename]))
             img = tf.image.decode_jpeg(img, channels=3)
             img = tf.image.resize(img, target_size)
-            return tf.cast(img, tf.float32) / 255.0, labels / normalize_by
+            return preprocess_image_pixels(img), labels / normalize_by
         
         train_ds = tf.data.Dataset.from_tensor_slices((
             train_df['filename'].values,
@@ -839,366 +735,3 @@ if __name__ == "__main__":
     print("  📸 Image Analysis: show_image(), load_image(), etc.")
     print("  🔧 Preprocessing: process_and_save_image(), batch_process_and_save_images(), etc.")
     print("  🤖 ML Training: build_resnet_regression(), train_model(), etc.")
-
-
-# ============================================================================
-# OUTPUT NORMALIZATION FUNCTIONS (MinMaxScaler)
-# ============================================================================
-
-def create_output_scaler(outputs, feature_range=(0, 1)):
-    """
-    Create and fit a MinMaxScaler for output normalization.
-    
-    Args:
-        outputs (numpy.ndarray): Output array to fit the scaler on
-                                Shape: (n_samples, n_features) e.g., (N, 3) for [x, y, distance]
-        feature_range (tuple): Desired range of transformed data (default: (0, 1))
-        
-    Returns:
-        MinMaxScaler: Fitted scaler object
-        
-    Example:
-        >>> outputs = np.array([[100, 200, 50.5], [150, 250, 75.2]])
-        >>> scaler = create_output_scaler(outputs)
-    """
-    scaler = MinMaxScaler(feature_range=feature_range)
-    scaler.fit(outputs)
-    return scaler
-
-
-def normalize_outputs(outputs, scaler=None, feature_range=(0, 1)):
-    """
-    Normalize outputs using MinMaxScaler.
-    
-    Args:
-        outputs (numpy.ndarray): Output array to normalize
-                                Shape: (n_samples, n_features) e.g., (N, 3) for [x, y, distance]
-        scaler (MinMaxScaler, optional): Pre-fitted scaler. If None, creates and fits a new one
-        feature_range (tuple): Desired range of transformed data (default: (0, 1))
-        
-    Returns:
-        tuple: (normalized_outputs, scaler)
-            - normalized_outputs (numpy.ndarray): Normalized output array
-            - scaler (MinMaxScaler): The scaler used for normalization
-            
-    Example:
-        >>> outputs = np.array([[100, 200, 50.5], [150, 250, 75.2]])
-        >>> normalized, scaler = normalize_outputs(outputs)
-        >>> print(normalized)
-        [[0. 0. 0.]
-         [1. 1. 1.]]
-    """
-    if scaler is None:
-        scaler = create_output_scaler(outputs, feature_range=feature_range)
-    
-    normalized_outputs = scaler.transform(outputs)
-    return normalized_outputs, scaler
-
-
-def denormalize_outputs(normalized_outputs, scaler):
-    """
-    Denormalize (inverse transform) normalized outputs back to original scale.
-    
-    Args:
-        normalized_outputs (numpy.ndarray): Normalized output array to denormalize
-                                           Shape: (n_samples, n_features) e.g., (N, 3)
-        scaler (MinMaxScaler): The fitted scaler used during normalization
-        
-    Returns:
-        numpy.ndarray: Denormalized outputs in original scale
-        
-    Example:
-        >>> # After training with normalized outputs
-        >>> predictions_normalized = model.predict(X_test)  # shape: (N, 3)
-        >>> predictions_original = denormalize_outputs(predictions_normalized, scaler)
-        >>> print(predictions_original)  # Back to original [x, y, distance] scale
-        
-    Note:
-        - The scaler must be the same one used during normalization
-        - Typically saved during training and loaded during inference
-    """
-    if scaler is None:
-        raise ValueError("Scaler cannot be None. Please provide the fitted scaler used during normalization.")
-    
-    denormalized_outputs = scaler.inverse_transform(normalized_outputs)
-    return denormalized_outputs
-
-
-def save_output_scaler(scaler, filepath='data/output_scaler.pkl'):
-    """
-    Save a fitted MinMaxScaler to disk for later use.
-    
-    Args:
-        scaler (MinMaxScaler): Fitted scaler to save
-        filepath (str): Path where the scaler will be saved (default: 'data/output_scaler.pkl')
-        
-    Returns:
-        str: Path where the scaler was saved
-        
-    Example:
-        >>> scaler = create_output_scaler(train_outputs)
-        >>> save_output_scaler(scaler, 'models/my_scaler.pkl')
-    """
-    filepath = Path(filepath)
-    filepath.parent.mkdir(parents=True, exist_ok=True)
-    
-    with open(filepath, 'wb') as f:
-        pickle.dump(scaler, f)
-    
-    print(f"✅ Scaler saved to: {filepath}")
-    return str(filepath)
-
-
-def load_output_scaler(filepath='data/output_scaler.pkl'):
-    """
-    Load a saved MinMaxScaler from disk.
-    
-    Args:
-        filepath (str): Path to the saved scaler file (default: 'data/output_scaler.pkl')
-        
-    Returns:
-        MinMaxScaler: Loaded scaler object
-        
-    Example:
-        >>> scaler = load_output_scaler('models/my_scaler.pkl')
-        >>> predictions_original = denormalize_outputs(predictions_norm, scaler)
-        
-    Raises:
-        FileNotFoundError: If the scaler file doesn't exist
-    """
-    filepath = Path(filepath)
-    
-    if not filepath.exists():
-        raise FileNotFoundError(f"Scaler file not found: {filepath}")
-    
-    with open(filepath, 'rb') as f:
-        scaler = pickle.load(f)
-    
-    print(f"✅ Scaler loaded from: {filepath}")
-    return scaler
-
-
-def get_scaler_info(scaler):
-    """
-    Display information about a fitted MinMaxScaler.
-    
-    Args:
-        scaler (MinMaxScaler): Fitted scaler object
-        
-    Returns:
-        dict: Dictionary containing scaler information
-        
-    Example:
-        >>> scaler = load_output_scaler('data/output_scaler.pkl')
-        >>> info = get_scaler_info(scaler)
-        >>> print(info)
-    """
-    if not hasattr(scaler, 'data_min_'):
-        print("⚠️  Scaler has not been fitted yet!")
-        return None
-    
-    info = {
-        'feature_range': scaler.feature_range,
-        'n_features': scaler.n_features_in_,
-        'data_min': scaler.data_min_,
-        'data_max': scaler.data_max_,
-        'data_range': scaler.data_range_,
-        'scale': scaler.scale_,
-        'min': scaler.min_
-    }
-    
-    print("📊 MinMaxScaler Information:")
-    print(f"   Feature range: {info['feature_range']}")
-    print(f"   Number of features: {info['n_features']}")
-    print(f"   Data min values: {info['data_min']}")
-    print(f"   Data max values: {info['data_max']}")
-    print(f"   Data range: {info['data_range']}")
-    
-    return info
-
-
-
-# ============================================================================
-# IMAGE INPUT NORMALIZATION FUNCTIONS (Pixel-level normalization)
-# ============================================================================
-
-def normalize_image_pixels(image_array, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
-    """
-    Normalize image pixel values using mean and standard deviation (typically ImageNet stats).
-    This is the standard normalization for CNN inputs.
-    
-    Args:
-        image_array (numpy.ndarray): Image array with shape (H, W, 3) or (N, H, W, 3)
-                                     Values should be in [0, 1] range
-        mean (list): Mean values for R, G, B channels (default: ImageNet mean)
-        std (list): Standard deviation values for R, G, B channels (default: ImageNet std)
-        
-    Returns:
-        numpy.ndarray: Normalized image array with same shape as input
-        
-    Example:
-        >>> image = load_image('data/train/0.jpg')  # Shape: (480, 640, 3), values [0-255]
-        >>> image = image / 255.0  # Convert to [0, 1]
-        >>> normalized = normalize_image_pixels(image)
-    """
-    # Convert to float32 if needed
-    image_array = image_array.astype(np.float32)
-    
-    # If image is in [0, 255] range, scale to [0, 1]
-    if image_array.max() > 1.0:
-        image_array = image_array / 255.0
-    
-    # Convert mean and std to numpy arrays
-    mean = np.array(mean, dtype=np.float32)
-    std = np.array(std, dtype=np.float32)
-    
-    # Apply normalization: (image - mean) / std
-    normalized = (image_array - mean) / std
-    
-    return normalized
-
-
-def denormalize_image_pixels(normalized_array, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
-    """
-    Denormalize image pixels back to [0, 1] range for visualization.
-    
-    Args:
-        normalized_array (numpy.ndarray): Normalized image array
-        mean (list): Mean values used for normalization
-        std (list): Std values used for normalization
-        
-    Returns:
-        numpy.ndarray: Denormalized image in [0, 1] range
-        
-    Example:
-        >>> denormalized = denormalize_image_pixels(normalized_image)
-        >>> plt.imshow(denormalized)
-    """
-    # Convert mean and std to numpy arrays
-    mean = np.array(mean, dtype=np.float32)
-    std = np.array(std, dtype=np.float32)
-    
-    # Reverse normalization: image * std + mean
-    denormalized = (normalized_array * std) + mean
-    
-    # Clip to [0, 1] range
-    denormalized = np.clip(denormalized, 0, 1)
-    
-    return denormalized
-
-
-def create_image_statistics(images_array):
-    """
-    Calculate mean and std statistics from a batch of images for custom normalization.
-    
-    Args:
-        images_array (numpy.ndarray): Array of images with shape (N, H, W, 3)
-                                      Values should be in [0, 1] range
-        
-    Returns:
-        dict: Dictionary with 'mean' and 'std' for each channel
-        
-    Example:
-        >>> images, _, _, _ = load_and_preprocess_images('data/train_split.csv', 'data/train')
-        >>> stats = create_image_statistics(images)
-        >>> print(f"Custom mean: {stats['mean']}")
-        >>> print(f"Custom std: {stats['std']}")
-    """
-    # Ensure images are in [0, 1] range
-    if images_array.max() > 1.0:
-        images_array = images_array / 255.0
-    
-    # Calculate mean and std per channel across all images
-    mean = np.mean(images_array, axis=(0, 1, 2))
-    std = np.std(images_array, axis=(0, 1, 2))
-    
-    stats = {
-        'mean': mean.tolist(),
-        'std': std.tolist(),
-        'n_images': len(images_array)
-    }
-    
-    print("📊 Image Statistics:")
-    print("="*60)
-    print(f"Number of images: {stats['n_images']}")
-    print(f"Mean (R, G, B): {stats['mean']}")
-    print(f"Std  (R, G, B): {stats['std']}")
-    print("="*60)
-    
-    return stats
-
-
-def save_image_statistics(stats, filepath='data/image_stats.pkl'):
-    """
-    Save image statistics to disk.
-    
-    Args:
-        stats (dict): Dictionary with 'mean' and 'std' values
-        filepath (str): Path to save the statistics
-        
-    Returns:
-        str: Path where stats were saved
-    """
-    filepath = Path(filepath)
-    filepath.parent.mkdir(parents=True, exist_ok=True)
-    
-    with open(filepath, 'wb') as f:
-        pickle.dump(stats, f)
-    
-    print(f"✅ Image statistics saved to: {filepath}")
-    return str(filepath)
-
-
-def load_image_statistics(filepath='data/image_stats.pkl'):
-    """
-    Load saved image statistics from disk.
-    
-    Args:
-        filepath (str): Path to the saved statistics file
-        
-    Returns:
-        dict: Dictionary with 'mean' and 'std' values
-    """
-    filepath = Path(filepath)
-    
-    if not filepath.exists():
-        raise FileNotFoundError(f"Image statistics file not found: {filepath}")
-    
-    with open(filepath, 'rb') as f:
-        stats = pickle.load(f)
-    
-    print(f"✅ Image statistics loaded from: {filepath}")
-    return stats
-
-
-def batch_normalize_images(images_array, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]):
-    """
-    Normalize a batch of images efficiently.
-    
-    Args:
-        images_array (numpy.ndarray): Batch of images with shape (N, H, W, 3)
-        mean (list): Mean values for normalization
-        std (list): Std values for normalization
-        
-    Returns:
-        numpy.ndarray: Normalized batch of images
-        
-    Example:
-        >>> images = np.array([img1, img2, img3])  # Shape: (3, 224, 224, 3)
-        >>> normalized = batch_normalize_images(images)
-    """
-    # Convert to float32
-    images_array = images_array.astype(np.float32)
-    
-    # Scale to [0, 1] if needed
-    if images_array.max() > 1.0:
-        images_array = images_array / 255.0
-    
-    # Convert mean and std to numpy arrays with shape (1, 1, 1, 3) for broadcasting
-    mean = np.array(mean, dtype=np.float32).reshape(1, 1, 1, 3)
-    std = np.array(std, dtype=np.float32).reshape(1, 1, 1, 3)
-    
-    # Apply normalization
-    normalized = (images_array - mean) / std
-    
-    return normalized
