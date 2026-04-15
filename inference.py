@@ -1,17 +1,33 @@
+"""ISS Docking inference.
+
+This module mirrors the preprocessing and output scaling used in training:
+- image: JPEG decode -> resize to 224x224 -> float32 -> divide by 255
+- labels during training: [x, y, distance] divided by 512
+
+Inference loads a fully trained Keras model from a single `.h5` file.
 """
-ISS Docking Inference Script
-Make predictions on new images with proper denormalization
-"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Iterable
 
 import numpy as np
 import tensorflow as tf
-import cv2
-from pathlib import Path
+import matplotlib.pyplot as plt
 
-from helpers import load_output_scalers, denormalize_outputs
+from helpers import load_coordinates, show_image
 
 
-def load_and_preprocess_image(image_path, img_size=224):
+IMG_SIZE = 224
+TARGET_SIZE = (IMG_SIZE, IMG_SIZE)
+INPUT_SCALE = 255.0
+OUTPUT_SCALE = 512.0
+
+DEFAULT_MODEL_PATH = Path("models") / "resnet_docking_best.h5"
+
+
+def load_and_preprocess_image(image_path: str | Path, target_size: tuple[int, int] = TARGET_SIZE) -> tf.Tensor:
     """
     Load and preprocess a single image for inference.
     
@@ -22,34 +38,40 @@ def load_and_preprocess_image(image_path, img_size=224):
     Returns:
         np.ndarray: Preprocessed image ready for model input
     """
-    # Load image
-    image = cv2.imread(str(image_path))
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    
-    # Resize
-    image = cv2.resize(image, (img_size, img_size))
-    
-    # Scale to [0, 1]
-    image = image.astype(np.float32) / 255.0
-    
-    # Apply ImageNet normalization
-    IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
-    IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
-    image = (image - IMAGENET_MEAN) / IMAGENET_STD
-    
-    # Add batch dimension
-    image = np.expand_dims(image, axis=0)
-    
-    return image
+    image_path = Path(image_path)
+    if not image_path.exists():
+        raise FileNotFoundError(f"Image not found: {image_path}")
+
+    image_bytes = tf.io.read_file(str(image_path))
+    image = tf.image.decode_jpeg(image_bytes, channels=3)
+    image = tf.image.resize(image, target_size)
+    image = tf.cast(image, tf.float32) / INPUT_SCALE
+    return tf.expand_dims(image, axis=0)
 
 
-def predict_single_image(model, scalers, image_path, img_size=224):
+def load_trained_model(model_path: str | Path = DEFAULT_MODEL_PATH) -> tf.keras.Model:
+    """Load a fully trained Keras model from disk (.h5)."""
+    model_path = Path(model_path)
+    if not model_path.exists():
+        raise FileNotFoundError(
+            f"Model file not found: {model_path}. "
+            "Train/export a full Keras .h5 model or point to an existing *.h5 file."
+        )
+
+    return tf.keras.models.load_model(str(model_path), compile=False)
+
+
+def predict_single_image(
+    model: tf.keras.Model,
+    image_path: str | Path,
+    target_size: tuple[int, int] = TARGET_SIZE,
+) -> dict[str, float]:
     """
-    Make prediction on a single image and denormalize the output.
+    Make prediction on a single image and convert outputs back to
+    the original label scale.
     
     Args:
         model: Trained Keras model
-        scalers: Dictionary of output scalers
         image_path (str): Path to the image
         img_size (int): Image size
     
@@ -57,33 +79,36 @@ def predict_single_image(model, scalers, image_path, img_size=224):
         dict: Prediction results in original scale
     """
     # Preprocess image
-    image = load_and_preprocess_image(image_path, img_size)
+    image = load_and_preprocess_image(image_path, target_size)
+
+    # Model outputs are in training label scale: value / 512
+    prediction_norm = model(image, training=False).numpy()
     
-    # Make prediction (normalized [0, 1])
-    prediction_norm = model.predict(image, verbose=0)
-    
-    # Denormalize to original scale
-    prediction_original = denormalize_outputs(prediction_norm, scalers)
+    # Convert to original scale (training divided labels by 512)
+    prediction_original = prediction_norm * OUTPUT_SCALE
     
     result = {
-        'x': prediction_original[0, 0],
-        'y': prediction_original[0, 1],
-        'distance': prediction_original[0, 2],
-        'x_normalized': prediction_norm[0, 0],
-        'y_normalized': prediction_norm[0, 1],
-        'distance_normalized': prediction_norm[0, 2]
+        "x": float(prediction_original[0, 0]),
+        "y": float(prediction_original[0, 1]),
+        "distance": float(prediction_original[0, 2]),
+        "x_normalized": float(prediction_norm[0, 0]),
+        "y_normalized": float(prediction_norm[0, 1]),
+        "distance_normalized": float(prediction_norm[0, 2]),
     }
     
     return result
 
 
-def predict_batch(model, scalers, image_paths, img_size=224):
+def predict_batch(
+    model: tf.keras.Model,
+    image_paths: Iterable[str | Path],
+    target_size: tuple[int, int] = TARGET_SIZE,
+) -> np.ndarray:
     """
     Make predictions on multiple images.
     
     Args:
         model: Trained Keras model
-        scalers: Dictionary of output scalers
         image_paths (list): List of image paths
         img_size (int): Image size
     
@@ -91,53 +116,44 @@ def predict_batch(model, scalers, image_paths, img_size=224):
         np.ndarray: Predictions in original scale, shape (n_images, 3)
     """
     # Preprocess all images
-    images = []
+    images: list[tf.Tensor] = []
     for image_path in image_paths:
-        image = load_and_preprocess_image(image_path, img_size)
-        images.append(image[0])  # Remove batch dimension
-    
-    images = np.array(images)
-    
+        image = load_and_preprocess_image(image_path, target_size)
+        images.append(image[0])
+
+    if not images:
+        return np.zeros((0, 3), dtype=np.float32)
+
+    batch = tf.stack(images, axis=0)
+
     # Make predictions (normalized)
-    predictions_norm = model.predict(images, verbose=0)
+    predictions_norm = model(batch, training=False).numpy()
     
-    # Denormalize to original scale
-    predictions_original = denormalize_outputs(predictions_norm, scalers)
+    # Convert to original scale (training divided labels by 512)
+    predictions_original = predictions_norm * OUTPUT_SCALE
     
     return predictions_original
 
 
 def main():
-    """Example usage of the inference functions"""
+    """Example usage of the inference functions."""
     
     print("🚀 ISS Docking Inference Example")
     print("="*60)
     
-    # Load trained model
-    MODEL_PATH = "models/resnet_docking.h5"
-    SCALERS_PATH = "models/output_scalers.pkl"
-    
-    print(f"📂 Loading model from: {MODEL_PATH}")
-    model = tf.keras.models.load_model(MODEL_PATH)
-    
-    print(f"📂 Loading output scalers from: {SCALERS_PATH}")
-    scalers = load_output_scalers(SCALERS_PATH)
-    
-    print("\n📊 Scaler Information:")
-    for name, scaler in scalers.items():
-        print(f"   {name.upper()}:")
-        print(f"      Min: {scaler.data_min_[0]:.2f}")
-        print(f"      Max: {scaler.data_max_[0]:.2f}")
+    print(f"📂 Loading model from: {DEFAULT_MODEL_PATH}")
+    model = load_trained_model(DEFAULT_MODEL_PATH)
     
     # Example: Predict on a single image
     print("\n" + "="*60)
     print("🖼️ Single Image Prediction Example")
     print("="*60)
     
-    test_image_path = "data/resized/0.jpg"
+    # Prefer the same source folder used during training (train.py uses `data/train`).
+    test_image_path = "data/train/0.jpg"
     
     if Path(test_image_path).exists():
-        result = predict_single_image(model, scalers, test_image_path)
+        result = predict_single_image(model, test_image_path)
         
         print(f"\n📸 Image: {test_image_path}")
         print(f"\n🎯 Predictions (Original Scale):")
@@ -145,10 +161,19 @@ def main():
         print(f"   Y coordinate: {result['y']:.2f} pixels")
         print(f"   Distance: {result['distance']:.2f} meters")
         
-        print(f"\n📊 Predictions (Normalized [0, 1]):")
+        print(f"\n📊 Predictions (Model Output Scale = value / 512):")
         print(f"   X: {result['x_normalized']:.4f}")
         print(f"   Y: {result['y_normalized']:.4f}")
         print(f"   Distance: {result['distance_normalized']:.4f}")
+
+        image_id = int(Path(test_image_path).stem)
+        actual_x, actual_y = load_coordinates(image_id)
+        plt.ion()
+        show_image(image_id)
+        plt.scatter(result["x"], result["y"], color="blue", label="Predicted")
+        plt.legend()
+        plt.ioff()
+        plt.show()
     else:
         print(f"⚠️  Test image not found: {test_image_path}")
     
@@ -157,17 +182,18 @@ def main():
     print("📦 Batch Prediction Example")
     print("="*60)
     
-    image_dir = Path("data/resized")
+    image_dir = Path("data/train")
     test_images = list(image_dir.glob("*.jpg"))[:5]  # First 5 images
     
     if test_images:
         print(f"\n🖼️ Predicting on {len(test_images)} images...")
-        predictions = predict_batch(model, scalers, test_images)
+        predictions = predict_batch(model, test_images)
+        
         
         print(f"\n📊 Batch Predictions (Original Scale):")
         print(f"{'Image':<20} {'X (px)':<12} {'Y (px)':<12} {'Distance (m)':<15}")
         print("-"*60)
-        for i, (img_path, pred) in enumerate(zip(test_images, predictions)):
+        for img_path, pred in zip(test_images, predictions):
             print(f"{img_path.name:<20} {pred[0]:<12.2f} {pred[1]:<12.2f} {pred[2]:<15.2f}")
     else:
         print(f"⚠️  No test images found in: {image_dir}")

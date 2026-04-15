@@ -9,6 +9,7 @@ from helpers import create_docking_datasets
 BATCH_SIZE, EPOCHS, LR = 32, 300, 5e-4
 CHECKPOINT_DIR = "checkpoints"  # Directory for TF checkpoints
 BEST_WEIGHTS_PATH = "models/resnet_docking_best.weights.h5"
+BEST_MODEL_PATH = "models/resnet_docking_best.h5"
 
 def main():
     # Configure GPU
@@ -122,6 +123,13 @@ def main():
                 monitor='val_loss',
                 verbose=1
             ),
+            tf.keras.callbacks.ModelCheckpoint(
+                BEST_MODEL_PATH,
+                save_weights_only=False,
+                save_best_only=True,
+                monitor='val_loss',
+                verbose=1
+            ),
             # Early stopping: stop if validation loss doesn't improve for 30 epochs
             tf.keras.callbacks.EarlyStopping(
                 patience=30,
@@ -161,6 +169,7 @@ def main():
         f" | Dist: {_safe_last(history.history, 'val_rmse_dist'):.4f}"
     )
     print(f"\n Best weights saved to {BEST_WEIGHTS_PATH}")
+    print(f" Best full model saved to {BEST_MODEL_PATH}")
     print(" Checkpoint weights saved every 10 epochs in models/")
     print("\n✅ Training optimization complete! Model should have better accuracy.")
     print(" Improvements applied:")
