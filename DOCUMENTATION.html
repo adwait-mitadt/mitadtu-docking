@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Integrated Mission — Technical Documentation</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<style>
+  :root {
+    --bg:      #0d1117;
+    --surface: #161b22;
+    --border:  #30363d;
+    --text:    #e6edf3;
+    --muted:   #8b949e;
+    --blue:    #388bfd;
+    --green:   #2ea043;
+    --yellow:  #e3b341;
+    --purple:  #a371f7;
+    --orange:  #f0883e;
+    --red:     #f85149;
+    --teal:    #39d353;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.65;
+    padding: 0 16px 80px;
+  }
+
+  /* ── Layout ── */
+  .wrapper { max-width: 1080px; margin: 0 auto; }
+
+  /* ── Header ── */
+  .site-header {
+    text-align: center;
+    padding: 56px 16px 40px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 48px;
+  }
+  .site-header h1 { font-size: 2.2rem; font-weight: 700; color: var(--text); }
+  .site-header .subtitle {
+    font-size: 1rem; color: var(--muted); margin-top: 8px;
+  }
+  .badge {
+    display: inline-block;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 14px;
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin: 6px 4px 0;
+  }
+
+  /* ── Navigation ── */
+  nav.toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px 28px;
+    margin-bottom: 48px;
+  }
+  nav.toc h2 { font-size: 1rem; font-weight: 600; margin-bottom: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  nav.toc ol { padding-left: 20px; }
+  nav.toc li { margin: 5px 0; }
+  nav.toc a  { color: var(--blue); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  nav.toc ol ol { margin-top: 4px; }
+
+  /* ── Sections ── */
+  section { margin-bottom: 64px; }
+  section h2 {
+    font-size: 1.55rem;
+    font-weight: 700;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 24px;
+    color: var(--text);
+    scroll-margin-top: 24px;
+  }
+  section h3 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin: 28px 0 12px;
+    color: var(--blue);
+    scroll-margin-top: 24px;
+  }
+  section h4 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 20px 0 8px;
+    color: var(--yellow);
+  }
+  p { margin-bottom: 14px; color: var(--text); }
+
+  /* ── Callout boxes ── */
+  .callout {
+    background: var(--surface);
+    border-left: 4px solid var(--blue);
+    border-radius: 0 8px 8px 0;
+    padding: 14px 18px;
+    margin: 18px 0;
+    font-size: 0.93rem;
+  }
+  .callout.warn  { border-color: var(--yellow); }
+  .callout.info  { border-color: var(--purple); }
+  .callout.green { border-color: var(--teal); }
+  .callout strong { color: var(--yellow); }
+
+  /* ── Diagram containers ── */
+  .diagram-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 28px 16px;
+    margin: 20px 0;
+    overflow-x: auto;
+    text-align: center;
+  }
+  .diagram-box .caption {
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-top: 12px;
+    font-style: italic;
+  }
+
+  /* ── Tables ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    margin: 16px 0 24px;
+  }
+  th {
+    background: #1c2128;
+    color: var(--muted);
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: .06em;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    text-align: left;
+  }
+  td {
+    padding: 9px 14px;
+    border: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: #161b22; }
+  code {
+    background: #1c2128;
+    color: var(--orange);
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 0.85em;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  /* ── Code blocks ── */
+  pre {
+    background: #1c2128;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+    overflow-x: auto;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    color: var(--text);
+    font-family: "SFMono-Regular", Consolas, monospace;
+    margin: 14px 0 22px;
+  }
+  pre .kw  { color: #ff7b72; }
+  pre .fn  { color: #d2a8ff; }
+  pre .cm  { color: #8b949e; font-style: italic; }
+  pre .st  { color: #a5d6ff; }
+  pre .nm  { color: #79c0ff; }
+
+  /* ── Math ── */
+  .math-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 22px;
+    margin: 16px 0;
+    overflow-x: auto;
+    text-align: center;
+    font-size: 1.05em;
+  }
+
+  /* ── Pill labels ── */
+  .pill {
+    display: inline-block;
+    border-radius: 6px;
+    padding: 2px 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-right: 4px;
+  }
+  .pill-blue   { background: #0d419d; color: #58a6ff; border: 1px solid #1f6feb; }
+  .pill-green  { background: #0f2f1e; color: #56d364; border: 1px solid #2ea043; }
+  .pill-yellow { background: #2d2208; color: #f0c04d; border: 1px solid #9e6a03; }
+  .pill-purple { background: #1e1635; color: #a371f7; border: 1px solid #6e40c9; }
+  .pill-red    { background: #2b1011; color: #ff7b72; border: 1px solid #6e1a1a; }
+
+  /* ── Two-column grid ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 16px 0; }
+  @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+
+  .info-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .info-card h4 { margin-top: 0; }
+
+  /* ── Step timeline ── */
+  .timeline { list-style: none; padding: 0; position: relative; }
+  .timeline::before {
+    content: ''; position: absolute; left: 18px; top: 0; bottom: 0;
+    width: 2px; background: var(--border);
+  }
+  .timeline li {
+    padding: 0 0 28px 52px;
+    position: relative;
+  }
+  .timeline li::before {
+    content: attr(data-n);
+    position: absolute; left: 6px; top: 2px;
+    width: 26px; height: 26px;
+    background: var(--blue);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.82rem; font-weight: 700; color: white;
+    line-height: 26px; text-align: center;
+  }
+  .timeline li h4 { color: var(--text); margin: 0 0 6px; }
+
+  /* ── Output file cards ── */
+  .output-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
+    margin: 18px 0;
+  }
+  .output-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .output-card .icon { font-size: 1.8rem; margin-bottom: 8px; }
+  .output-card .name { font-family: monospace; font-size: 0.82rem; color: var(--orange); margin-bottom: 6px; }
+  .output-card p { font-size: 0.85rem; color: var(--muted); margin: 0; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+<!-- ═══════════════════════════════════════════════════
+     HEADER
+════════════════════════════════════════════════════ -->
+<header class="site-header">
+  <h1>Integrated Mission — Technical Documentation</h1>
+  <p class="subtitle">Orbital Rendezvous &amp; ML-Guided Autonomous Docking</p>
+  <br/>
+  <span class="badge">LEO 400 km → ISS 35 786 km → Docking</span>
+  <span class="badge">Python · TensorFlow · ResNet50 · EKF · PID</span>
+  <span class="badge">Phase 1: GNC · Phase 2: ML Vision</span>
+</header>
+
+<!-- ═══════════════════════════════════════════════════
+     TABLE OF CONTENTS
+════════════════════════════════════════════════════ -->
+<nav class="toc">
+  <h2>Table of Contents</h2>
+  <ol>
+    <li><a href="#sec-overview">Mission Overview</a></li>
+    <li><a href="#sec-pipeline">Full System Pipeline Flowchart</a></li>
+    <li><a href="#sec-phase1">Phase 1 — Orbital GNC</a>
+      <ol>
+        <li><a href="#sec-hohmann">Step 1: Hohmann Transfer</a></li>
+        <li><a href="#sec-lambert">Step 2: Lambert Rendezvous</a></li>
+        <li><a href="#sec-ekf">Step 3: EKF Navigation</a></li>
+        <li><a href="#sec-pid">Step 4: PID Attitude Control</a></li>
+      </ol>
+    </li>
+    <li><a href="#sec-handoff">Phase Handoff Logic</a></li>
+    <li><a href="#sec-phase2">Phase 2 — ML-Guided Close Approach</a>
+      <ol>
+        <li><a href="#sec-dataset">Dataset &amp; Image Selection</a></li>
+        <li><a href="#sec-model">ResNet50 Inference Pipeline</a></li>
+        <li><a href="#sec-controller">Proximity Controller (PD)</a></li>
+      </ol>
+    </li>
+    <li><a href="#sec-dataflow">End-to-End Data Flow</a></li>
+    <li><a href="#sec-outputs">Output Files</a></li>
+    <li><a href="#sec-constants">Constants &amp; Parameters</a></li>
+    <li><a href="#sec-codestructure">Code Structure</a></li>
+  </ol>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════
+     1. OVERVIEW
+════════════════════════════════════════════════════ -->
+<section id="sec-overview">
+  <h2>1. Mission Overview</h2>
+
+  <p>
+    This project combines two subsystems into a single end-to-end autonomous
+    spacecraft docking simulation:
+  </p>
+
+  <ul style="margin: 0 0 18px 22px; line-height: 2;">
+    <li><strong>Phase 1 (Orbital GNC)</strong> — Classical guidance, navigation &amp; control
+        algorithms bring a chaser vehicle from a 400 km circular LEO to the ISS orbit
+        at 35 786 km, then close the relative range from several kilometres down to
+        ~491 m using Hohmann transfer, Lambert arc, Extended Kalman Filter, and PID
+        attitude control.</li>
+    <li><strong>Phase 2 (ML Vision)</strong> — A fine-tuned ResNet50 regression model
+        processes sequential docking-approach images (512×512 px) to predict the
+        pixel coordinates of the docking port and the range to it.  A PD
+        Proximity Controller converts the pixel prediction error into attitude
+        correction torques for the final 491 m → 61 m approach.</li>
+  </ul>
+
+  <div class="two-col">
+    <div class="info-card">
+      <h4>Phase 1 Summary</h4>
+      <table style="margin:0">
+        <tr><td>Initial orbit</td><td>LEO 400 km circular</td></tr>
+        <tr><td>Target orbit</td><td>ISS 35 786 km GEO-like</td></tr>
+        <tr><td>Hohmann ΔV</td><td>≈ 3.854 km/s total</td></tr>
+        <tr><td>Transfer time</td><td>≈ 317.5 min</td></tr>
+        <tr><td>EKF range at handoff</td><td>≈ 491 m</td></tr>
+        <tr><td>PID convergence</td><td>≈ 135 s</td></tr>
+      </table>
+    </div>
+    <div class="info-card">
+      <h4>Phase 2 Summary</h4>
+      <table style="margin:0">
+        <tr><td>Range at takeover</td><td>491 m (dataset max)</td></tr>
+        <tr><td>Final range</td><td>61 m (dataset min)</td></tr>
+        <tr><td>Approach steps</td><td>12 sequential frames</td></tr>
+        <tr><td>Model</td><td>ResNet50 regression head</td></tr>
+        <tr><td>Model outputs</td><td>(x_px, y_px, distance)</td></tr>
+        <tr><td>Controller</td><td>PD on LoS pixel error</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="callout green">
+    <strong>Key Design Choice:</strong> The two phases share a single time axis.
+    Phase 1 EKF is truncated at the exact time-step it first reaches 491 m,
+    ensuring a <em>continuous</em> distance timeline with no backward jump.
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     2. FULL PIPELINE FLOWCHART
+════════════════════════════════════════════════════ -->
+<section id="sec-pipeline">
+  <h2>2. Full System Pipeline Flowchart</h2>
+
+  <div class="diagram-box">
+    <div class="mermaid">
+flowchart TD
+    START(["🚀 Mission Start\nLEO 400 km circular orbit"]):::startend
+
+    subgraph P1["PHASE 1 — Orbital GNC"]
+        direction TB
+        H["Step 1\nHohmann Transfer\nΔV₁ + ΔV₂\n400 km → 35 786 km"]:::step
+        L["Step 2\nLambert Rendezvous\nUniversal-variable Solver\nMin-energy arc"]:::step
+        E["Step 3\nEKF Navigation\n12-state CW dynamics\nLaser range+angle meas."]:::step
+        PID["Step 4\nPID Attitude Control\nQuaternion error → Torques\nRigid-body integration"]:::step
+        H --> L --> E --> PID
+    end
+
+    HANDOFF{"Range ≤ 491 m?\n(first EKF step)"}:::decision
+
+    subgraph P2["PHASE 2 — ML-Guided Close Approach"]
+        direction TB
+        IMG["Select closest image\nfrom dataset (491 m → 61 m)"]:::ml
+        INF["ResNet50 Inference\npredict(x_px, y_px, dist)"]:::ml
+        CTRL["PD Proximity Controller\nPixel error → LoS torques"]:::ml
+        LOG["Log step data\n(az/el error, torques,\npredictions)"]:::ml
+        MORE{"More steps?"}:::decision2
+        IMG --> INF --> CTRL --> LOG --> MORE
+        MORE -- "Yes" --> IMG
+    end
+
+    VIZ["Visualisation\nDashboard · Image Strip\nTimeline · GIF Animation"]:::viz
+
+    START --> P1
+    PID --> HANDOFF
+    HANDOFF -- "Yes → handoff" --> P2
+    HANDOFF -- "No → continue EKF" --> E
+    MORE -- "No / done" --> VIZ
+    VIZ --> END(["✅ Mission Complete\nAll outputs saved"]):::startend
+
+    classDef startend fill:#166534,stroke:#22c55e,color:#fff,rx:20
+    classDef step     fill:#1e3a5f,stroke:#388bfd,color:#e6edf3
+    classDef ml       fill:#2d1b69,stroke:#a371f7,color:#e6edf3
+    classDef decision fill:#3d2a00,stroke:#e3b341,color:#f0c04d,shape:diamond
+    classDef decision2 fill:#3d2a00,stroke:#e3b341,color:#f0c04d,shape:diamond
+    classDef viz      fill:#1a2f1a,stroke:#39d353,color:#e6edf3
+    </div>
+    <p class="caption">Figure 1 — Top-level mission pipeline from LEO insertion to docking completion.</p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     3. PHASE 1
+════════════════════════════════════════════════════ -->
+<section id="sec-phase1">
+  <h2>3. Phase 1 — Orbital GNC</h2>
+
+  <p>Phase 1 implements four classical spacecraft GNC steps, compacted from the
+  original <code>MiniProject.py</code> into <code>integrated_mission.py</code>.</p>
+
+  <!-- ── Hohmann ── -->
+  <h3 id="sec-hohmann">3.1 Step 1 — Hohmann Transfer</h3>
+
+  <p>
+    A Hohmann transfer uses two impulsive burns to move the chaser from an
+    initial circular orbit ($r_1$) to the ISS orbit ($r_2$).
+  </p>
+
+  <div class="diagram-box">
+    <div class="mermaid">
+flowchart LR
+    IN["Inputs\nalt_initial = 400 km\nalt_final  = 35 786 km"]:::inp
+
+    subgraph CALC["compute_hohmann()"]
+        R["r₁ = alt₁ + R_Earth\nr₂ = alt₂ + R_Earth"]
+        A["a_trans = (r₁+r₂)/2\ne_trans = (r₂−r₁)/(r₂+r₁)"]
+        V["v₁ = √(μ/r₁)   v₂ = √(μ/r₂)\nv_peri = √(2μ/r₁ − μ/a)\nv_apo  = √(2μ/r₂ − μ/a)"]
+        DV["ΔV₁ = v_peri − v₁\nΔV₂ = v₂ − v_apo\nΔV_total = |ΔV₁|+|ΔV₂|"]
+        TOF["TOF = π √(a³/μ)"]
+        R --> A --> V --> DV --> TOF
+    end
+
+    OUT["Outputs\nΔV_total ≈ 3.854 km/s\nTOF ≈ 317.5 min\na_trans, e_trans"]:::out
+
+    IN --> CALC --> OUT
+
+    classDef inp fill:#0f2f1e,stroke:#2ea043,color:#56d364
+    classDef out fill:#1e3a5f,stroke:#388bfd,color:#58a6ff
+    </div>
+    <p class="caption">Figure 2 — Hohmann Transfer computation flow.</p>
+  </div>
+
+  <div class="math-block">
+    $$\Delta V_1 = \sqrt{\frac{2\mu}{r_1} - \frac{\mu}{a_t}} - \sqrt{\frac{\mu}{r_1}}, \qquad
+      \Delta V_2 = \sqrt{\frac{\mu}{r_2}} - \sqrt{\frac{2\mu}{r_2} - \frac{\mu}{a_t}}$$
+    $$a_t = \frac{r_1 + r_2}{2}, \qquad T_{transfer} = \pi\sqrt{\frac{a_t^3}{\mu}}$$
+  </div>
+
+  <!-- ── Lambert ── -->
+  <h3 id="sec-lambert">3.2 Step 2 — Lambert Rendezvous</h3>
+
+  <p>
+    Lambert's problem: compute the impulsive velocity vectors $\mathbf{v}_0$ and
+    $\mathbf{v}_f$ needed to travel from $\mathbf{r}_0$ to $\mathbf{r}_f$ in a
+    prescribed time-of-flight.  The solver uses Battin's universal variable
+    formulation with Stumpff functions.
+  </p>
+
+  <div class="diagram-box">
+    <div class="mermaid">
+flowchart TD
+    subgraph STUMPFF["Stumpff Helper Functions"]
+        CS["C(z), S(z)\nHandles elliptic (z>0),\nhyperbolic (z<0),\nparabolic (z=0) cases"]
+    end
+
+    subgraph SCAN["lambert_uv() — z-scan + bisection"]
+        SC["Scan z ∈ [−4π², 4π²]\n2000 sample points"]
+        VALID["Filter valid z\n(y > 0 required)"]
+        SIGN["Find sign-change bracket\n[z_lo, z_hi] where dt(z)=TOF"]
+        BIS["Bisection root-find\n300 iterations, tol=1e-10"]
+        YZ["Compute y from z\ny = r₀+r + A(zS−1)/√C"]
+        VEC["v₀ = (r−f·r₀)/g\nvf = (ġ·r−r₀)/g"]
+        SC --> VALID --> SIGN --> BIS --> YZ --> VEC
+    end
+
+    subgraph MINEN["lambert_min_energy()"]
+        ME["Compute min-energy TOF\nvia parabolic arc geometry\nUsed as default TOF input"]
+    end
+
+    IN2["r_chaser, r_target\n(at ISS orbit, 7° apart)"]:::inp
+    OUT2["v₀_lambert, vf_lambert\n(burn velocity vectors)"]:::out
+
+    IN2 --> MINEN --> SCAN
+    SCAN --> OUT2
+    STUMPFF --> SCAN
+
+    classDef inp fill:#0f2f1e,stroke:#2ea043,color:#56d364
+    classDef out fill:#1e3a5f,stroke:#388bfd,color:#58a6ff
+    </div>
+    <p class="caption">Figure 3 — Lambert rendezvous solver using universal variables and Stumpff functions.</p>
+  </div>
+
+  <div class="math-block">
+    $$y = r_0 + r + A\frac{zS(z)-1}{\sqrt{C(z)}}, \qquad
+      A = t_m\sqrt{r_0 \cdot r \cdot (1+\cos\Delta\nu)}$$
+    $$\mathbf{v}_0 = \frac{\mathbf{r}_f - f\,\mathbf{r}_0}{g}, \qquad
+      \mathbf{v}_f = \frac{\dot{g}\,\mathbf{r}_f - \mathbf{r}_0}{g}$$
+  </div>
+
+  <!-- ── EKF ── -->
+  <h3 id="sec-ekf">3.3 Step 3 — EKF Navigation</h3>
+
+  <p>
+    A 12-state Extended Kalman Filter estimates the relative position, velocity,
+    and attitude between the chaser and ISS docking port. The dynamics follow the
+    Clohessy–Wiltshire (CW) linearised relative motion equations.
+    Laser ranging provides range ($\rho$), elevation ($\alpha$), and azimuth ($\beta$)
+    measurements at 1 Hz.
+  </p>
+
+  <div class="diagram-box">
+    <div class="mermaid">
+flowchart LR
+    subgraph STATE["12-State Vector X"]
+        XS["pos_rel  [0:3]  (x, y, z) km\nvel_rel  [3:6]  (ẋ, ẏ, ż) km/s\nquaternion [6:10] (q₀,q₁,q₂,q₃)\nangular rate [10:12] (ωx,ωy) rad/s"]
+    end
+
+    subgraph PRED["Predict Step — ekf_predict_step()"]
+        CW["CW State Transition Φ\ncw_stm(dt, n=Ω_orbit)"]
+        QI["Quaternion Integration\nΩ matrix × q, renormalize"]
+        XP["X⁻ = Φ X\nP⁻ = Φ P Φᵀ + Q"]
+        CW --> QI --> XP
+    end
+
+    subgraph MEAS["Measurement — h_las(X)"]
+        HL["ρ = √(x²+y²+z²)\nα = arcsin(−z/ρ)\nβ = arctan2(y, x)"]
+    end
+
+    subgraph UPD["Update Step — ekf_update_step()"]
+        JAC["H Jacobian\n∂h/∂X  (3×12)"]
+        KG["S = H P⁻ Hᵀ + R\nK = P⁻ Hᵀ S⁻¹"]
+        INN["Innovation ν = z_meas − h(X⁻)\n(angle wrap-around)"]
+        JOS["Joseph-form covariance\nP = (I−KH) P⁻ (I−KH)ᵀ + K R Kᵀ"]
+        JAC --> KG --> INN --> JOS
+    end
+
+    OUT3["Output per step\ndist = ‖X[0:3]‖ km\ntr(P) covariance trace"]:::out
+
+    STATE -->|"initial X₀, P₀"| PRED
+    PRED  --> MEAS
+    MEAS  --> UPD
+    UPD   -->|"600 steps @ 1 Hz"| OUT3
+    UPD   -->|"loop"| PRED
+
+    classDef out fill:#1e3a5f,stroke:#388bfd,color:#58a6ff
+    </div>
+    <p class="caption">Figure 4 — 12-state EKF navigation loop with CW dynamics and laser ranging.</p>
+  </div>
+
+  <div class="math-block">
+    $$\mathbf{X}^- = \Phi\,\mathbf{X}, \quad \mathbf{P}^- = \Phi\mathbf{P}\Phi^\top + \mathbf{Q}$$
+    $$\mathbf{K} = \mathbf{P}^-\mathbf{H}^\top(\mathbf{H}\mathbf{P}^-\mathbf{H}^\top + \mathbf{R})^{-1}$$
+    $$\mathbf{X}^+ = \mathbf{X}^- + \mathbf{K}(\mathbf{z} - h(\mathbf{X}^-))$$
+  </div>
+
+  <!-- ── PID ── -->
+  <h3 id="sec-pid">3.4 Step 4 — PID Attitude Control</h3>
+
+  <p>
+    A PD controller drives the chaser's attitude quaternion from an initial
+    orientation $q_0$ to a target docking attitude $q_t$ using Euler's
+    rigid-body torque equations.
+  </p>
+
+  <div class="diagram-box">
+    <div class="mermaid">
+flowchart TD
+    subgraph LOOP["run_pid_sim() — dt = 0.01 s"]
+        QE["Quaternion error\ne_q = q_t ⊗ q_c⁻¹\nError vector e = 2 q_e[1:4]"]
+        CTRL2["PD Control Law\nτ = clip( Kp·e − Kd·ω, ±τ_max )"]
+        EULER["Euler Rigid-body Dynamics\nω̇ = J⁻¹(τ − ω × J·ω)\nω = clip(ω + ω̇·dt, ±ω_max)"]
+        INT["RK4 Quaternion Integration\nq̇ = ½ q ⊗ [0, ω]\nrenormalize q"]
+        CONV{"‖e‖ < 1e-3 and\n‖ω‖ < 1e-4 ?"}
+        QE --> CTRL2 --> EULER --> INT --> CONV
+        CONV -- "No → continue" --> QE
+    end
+
+    PARAMS["Parameters\nKp = 0.08  Kd = 0.8\nJ = diag(0.01, 0.015, 0.02) kg·m²\nτ_max = 0.5 N·m  ω_max = 5 rad/s"]:::param
+    OUT4["Outputs\n(t_log, e_log, torq_log)\nConvergence ~135 s"]:::out
+
+    PARAMS --> LOOP --> OUT4
+
+    classDef param fill:#2d2208,stroke:#9e6a03,color:#f0c04d
+    classDef out   fill:#1e3a5f,stroke:#388bfd,color:#58a6ff
+    </div>
+    <p class="caption">Figure 5 — PID attitude control loop with quaternion error and RK4 integration.</p>
+  </div>
+
+  <div class="math-block">
+    $$\boldsymbol{\tau} = \text{clip}\!\left(K_p\,\mathbf{e} - K_d\,\boldsymbol{\omega},\ \pm\tau_{\max}\right)$$
+    $$\dot{\boldsymbol{\omega}} = \mathbf{J}^{-1}(\boldsymbol{\tau} - \boldsymbol{\omega}\times\mathbf{J}\boldsymbol{\omega}), \quad
+      \dot{\mathbf{q}} = \tfrac{1}{2}\,\mathbf{q}\otimes\begin{bmatrix}0 \\ \boldsymbol{\omega}\end{bmatrix}$$
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     4. HANDOFF LOGIC
+════════════════════════════════════════════════════ -->
+<section id="sec-handoff">
+  <h2>4. Phase Handoff Logic</h2>
+
+  <p>
+    The transition from Phase 1 (EKF) to Phase 2 (ML) must be seamless on the
+    distance-vs-time plot. The EKF simulation runs for 600 steps at 1 Hz. As the
+    CW trajectory decays the relative range, the handoff occurs at the first step
+    where <code>dist ≤ 491 m</code>.
+  </p>
+
+  <div class="diagram-box">
+    <div class="mermaid">
+flowchart LR
+    EKF_SIM["run_ekf_sim(600 steps)\nOutputs: ekf_dist[0..599] in km"]
+    CONV_M["Convert to metres\nekf_m = ekf_dist × 1000"]
+    FIND["Find handoff index\nbelow = where(ekf_m ≤ 491)\nhandoff_idx = below[0]"]
+    T_HO["t_handoff = handoff_idx × 1.0 s"]
+    PLOT1["Plot EKF phase\n t ∈ [0, t_handoff]"]
+    PLOT2["Plot ML phase\ntime axis starts at t_handoff\nML steps spaced 30 s each"]
+    SHOW["Continuous plot\nno backward distance jump"]:::out
+
+    EKF_SIM --> CONV_M --> FIND --> T_HO
+    T_HO --> PLOT1
+    T_HO --> PLOT2
+    PLOT1 --> SHOW
+    PLOT2 --> SHOW
+
+    classDef out fill:#166534,stroke:#22c55e,color:#fff
+    </div>
+    <p class="caption">Figure 6 — Phase handoff: EKF truncated at 491 m; ML timeline starts at the same moment.</p>
+  </div>
+
+  <div class="callout warn">
+    <strong>Bug that was fixed:</strong> Without truncation, the EKF distance decayed
+    to ~249 m over 600 steps, then the ML phase re-started at 491 m — creating a
+    242 m backward jump in the timeline. The fix truncates the EKF plot at the first
+    sub-491 m sample, then attaches the ML phase at that exact time.
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     5. PHASE 2
+════════════════════════════════════════════════════ -->
+<section id="sec-phase2">
+  <h2>5. Phase 2 — ML-Guided Close Approach</h2>
+
+  <!-- Dataset -->
+  <h3 id="sec-dataset">5.1 Dataset &amp; Image Selection</h3>
+
+  <p>
+    The training dataset (<code>data/train.csv</code>) contains 10 000 labelled
+    512×512 JPEG images of the ISS docking port at varying approach distances and
+    viewing angles.
+  </p>
+
+  <table>
+    <thead>
+      <tr><th>Field</th><th>Description</th><th>Range in Dataset</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>ImageID</code></td><td>Integer image identifier</td><td>0 – 9999</td></tr>
+      <tr><td><code>distance</code></td><td>Range to docking port (metres)</td><td>61 m – 491 m</td></tr>
+      <tr><td><code>location</code></td><td>Docking port pixel coords <code>[x, y]</code></td><td>x: 198–332 px, y: 46–510 px</td></tr>
+    </tbody>
+  </table>
+
+  <div class="diagram-box">
+    <div class="mermaid">
+flowchart TD
+    CSV["load_dataset_csv()\nParse train.csv row-by-row\nNo pandas — pure csv.DictReader"]
+    SCALE["build_scaler_from_data()\nCompute (x_min,x_max,\ny_min,y_max,d_min,d_max)\nfor min-max denormalization"]
+    STEPS["target_distances = linspace(491, 61, 12)\n12 equally-spaced range targets"]
+    FIND2["find_image_for_distance(target_d)\nArgmin |row.distance − target_d|\nover all 10 000 rows"]
+    LOAD["cv2.imread( data/train/{id}.jpg )\n512×512 BGR image"]
+    NEXT["Next step {i+1}"]
+
+    CSV --> SCALE
+    STEPS -->|"for each target dist"| FIND2
+    FIND2 --> LOAD --> NEXT --> FIND2
+
+    SCALE -->|"passed to inference"| FIND2
+    </div>
+    <p class="caption">Figure 7 — Dataset loading and image selection for the 12 ML approach steps.</p>
+  </div>
+
+  <!-- Model -->
+  <h3 id="sec-model">5.2 ResNet50 Inference Pipeline</h3>
+
+  <p>
+    The model is a transfer-learning architecture: a frozen ResNet50 encoder
+    (ImageNet weights) with a regression head trained to predict three
+    normalised output values that are then denormalised using dataset-level
+    min-max statistics.
+  </p>
+
+  <div class="diagram-box">
+    <div class="mermaid">
+flowchart LR
+    subgraph PRE["preprocess_for_model()"]
+        BGR["BGR → RGB\ncv2.cvtColor"]
+        RESIZE["Resize to 224×224\ncv2.resize"]
+        NORM["/ 255.0\nImageNet normalize\nmean=[0.485,0.456,0.406]\nstd=[0.229,0.224,0.225]"]
+        BATCH["Add batch dim\n→ shape (1,224,224,3)"]
+        BGR --> RESIZE --> NORM --> BATCH
+    end
+
+    subgraph MODEL["ResNet50 + Regression Head\nresnet_docking_best.h5"]
+        ENC["ResNet50 encoder\n(frozen, ImageNet weights)"]
+        HEAD["Regression head\nDense layers"]
+        OUT_N["Output shape: (1, 3)\n[x_norm, y_norm, dist_norm]\nall in [0, 1]"]
+        ENC --> HEAD --> OUT_N
+    end
+
+    subgraph DENORM["denorm_simple()"]
+        DN["x_px  = x_norm  × (x_max  − x_min)  + x_min\ny_px  = y_norm  × (y_max  − y_min)  + y_min\ndist  = d_norm  × (d_max  − d_min)  + d_min"]
+    end
+
+    FALLBACK["CSV Fallback (no TF)\nGround truth + Gaussian noise\nσ_x = σ_y = 3 px, σ_d = 5 m"]:::warn
+
+    IMG["512×512 BGR\ndocking-port image"]:::inp
+    FINAL["Prediction dict\n{x_pred, y_pred, dist_pred}"]:::out
+
+    IMG --> PRE --> MODEL --> DENORM --> FINAL
+    IMG -->|"if TF unavailable"| FALLBACK --> FINAL
+
+    classDef inp  fill:#0f2f1e,stroke:#2ea043,color:#56d364
+    classDef out  fill:#1e3a5f,stroke:#388bfd,color:#58a6ff
+    classDef warn fill:#2d2208,stroke:#9e6a03,color:#f0c04d
+    </div>
+    <p class="caption">Figure 8 — ResNet50 inference pipeline with ImageNet preprocessing and min-max denormalisation. CSV fallback activates when TensorFlow is not installed.</p>
+  </div>
+
+  <!-- Controller -->
+  <h3 id="sec-controller">5.3 Proximity Controller (PD)</h3>
+
+  <p>
+    The <code>ProximityController</code> class converts the predicted pixel position
+    of the docking port into angular attitude correction torques using a PD law.
+  </p>
+
+  <div class="diagram-box">
+    <div class="mermaid">
+flowchart TD
+    subgraph CONV["Pixel → Angle conversion"]
+        PIX["Pixel errors\nΔx_px = x_pred − 256\nΔy_px = y_pred − 256\n(image centre = 256,256)"]
+        ANG["Angular errors\nε_az = Δx_px × (FOV/pixel)\nε_el = Δy_px × (FOV/pixel)\nFOV/pixel = 40°/512 = 0.0781°/px"]
+        PIX --> ANG
+    end
+
+    subgraph PD["PD Control Law"]
+        DERIV["Derivative\nε̇_az = (ε_az − ε_az_prev) / dt\nε̇_el = (ε_el − ε_el_prev) / dt"]
+        TQ["Torques\nτ_az = −(Kp·ε_az + Kd·ε̇_az)\nτ_el = −(Kp·ε_el + Kd·ε̇_el)\nKp=2.5×10⁻³  Kd=8.0×10⁻³"]
+        CLIP["Clip to ±0.05\n(normalised torque units)"]
+        DERIV --> TQ --> CLIP
+    end
+
+    subgraph LOG2["History Logging"]
+        REC["Per-step record\n{step, dist_m, az_err_deg, el_err_deg,\ntotal_err (deg), az_torque, el_torque}"]
+    end
+
+    PRED2["(x_pred, y_pred, dist_m)\nfrom model inference"]:::inp
+    OUT5["(az_torque, el_torque)\nAttitude correction commands"]:::out
+
+    PRED2 --> CONV --> PD --> LOG2
+    CLIP --> OUT5
+
+    classDef inp fill:#0f2f1e,stroke:#2ea043,color:#56d364
+    classDef out fill:#1e3a5f,stroke:#388bfd,color:#58a6ff
+    </div>
+    <p class="caption">Figure 9 — Proximity controller: pixel error to angular torque via PD law.</p>
+  </div>
+
+  <div class="math-block">
+    $$\varepsilon_{az} = (x_{pred} - x_c)\cdot\frac{FOV_{rad}}{N_{px}}, \qquad
+      \varepsilon_{el} = (y_{pred} - y_c)\cdot\frac{FOV_{rad}}{N_{px}}$$
+    $$\tau_{az} = -\left(K_p\,\varepsilon_{az} + K_d\,\dot{\varepsilon}_{az}\right), \qquad
+      \tau_{el} = -\left(K_p\,\varepsilon_{el} + K_d\,\dot{\varepsilon}_{el}\right)$$
+    $$\text{LoS Error} = \sqrt{\varepsilon_{az}^2 + \varepsilon_{el}^2} \quad [\text{degrees}]$$
+  </div>
+
+  <h3>5.4 ML Phase Loop — Full Detail</h3>
+
+  <div class="diagram-box">
+    <div class="mermaid">
+flowchart TD
+    INIT["Initialise\ntarget_distances = linspace(491, 61, 12)\nProximityController()"]
+    FOR["For step i = 0 … 11"]
+    TGT["target_dist = target_distances[i]"]
+    ROW["find_image_for_distance(target_dist)\n→ {image_id, distance, x_gt, y_gt}"]
+    IMGLOAD["Load image\ndata/train/{image_id}.jpg"]
+    NOIMG{"Image found?"}
+    SKIP["Skip step\n(print WARNING)"]
+    EXTSI["Build extended scale_info\nappend (x_gt, y_gt, dist_gt) for fallback"]
+    INFER["run_inference(model, img, scale_info)\n→ {x_pred, y_pred, dist_pred}"]
+    CTRLUPD["controller.update(x_pred, y_pred, dist)\n→ (az_torque, el_torque)"]
+    LOGSTEP["Collect step dict\nstore img_bgr, gt, pred, torques"]
+    PRINT["Print progress row\n Step i | dist | pred | LoS_err"]
+    DONE{"i < 11 ?"}
+    END2["Return (steps_data, ctrl_hist)"]:::out
+
+    INIT --> FOR --> TGT --> ROW --> IMGLOAD --> NOIMG
+    NOIMG -- "No" --> SKIP --> DONE
+    NOIMG -- "Yes" --> EXTSI --> INFER --> CTRLUPD --> LOGSTEP --> PRINT --> DONE
+    DONE -- "Yes" --> FOR
+    DONE -- "No" --> END2
+
+    classDef out fill:#1e3a5f,stroke:#388bfd,color:#58a6ff
+    </div>
+    <p class="caption">Figure 10 — Detailed ML close-approach loop (run_ml_phase).</p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     6. END-TO-END DATA FLOW
+════════════════════════════════════════════════════ -->
+<section id="sec-dataflow">
+  <h2>6. End-to-End Data Flow</h2>
+
+  <div class="diagram-box">
+    <div class="mermaid">
+flowchart LR
+    subgraph INPUTS["Inputs"]
+        I1["alt_initial=400 km\nalt_final=35786 km"]
+        I2["data/train.csv\n10 000 labelled rows"]
+        I3["data/train/*.jpg\n512×512 JPEG images"]
+        I4["models/resnet_docking_best.h5\nTrained Keras model"]
+    end
+
+    subgraph P1F["Phase 1 Functions"]
+        F1["compute_hohmann()\n→ h_params dict"]
+        F2["lambert_uv()\n→ v₀, vf"]
+        F3["run_ekf_sim(600)\n→ ekf_dist[600], ekf_trace[600], ekf_pos[600,3]"]
+        F4["run_pid_sim()\n→ pid_t, pid_e, pid_torq"]
+    end
+
+    subgraph P2F["Phase 2 Functions"]
+        F5["load_dataset_csv()\n→ dataset_rows [10 000 dicts]"]
+        F6["build_scaler_from_data()\n→ scale_info (6-tuple)"]
+        F7["load_model_tf()\n→ keras model or None"]
+        F8["run_ml_phase()\n→ steps_data [12 dicts]\n   ctrl_hist  [12 dicts]"]
+    end
+
+    subgraph VIZ2["Visualisation Functions"]
+        V1["save_mission_dashboard(all results)\n→ integrated_mission_dashboard.png"]
+        V2["save_image_strip(steps_data)\n→ integrated_image_strip.png"]
+        V3["save_distance_timeline(ekf_dist, ctrl_hist)\n→ integrated_distance_timeline.png"]
+        V4["save_docking_animation(steps_data)\n→ integrated_docking_approach.gif"]
+    end
+
+    I1 --> F1 & F2
+    I2 --> F5 --> F6 --> F8
+    I3 --> F8
+    I4 --> F7 --> F8
+    F1 --> V1
+    F3 --> V1 & V3
+    F4 --> V1
+    F8 --> V1 & V2 & V3 & V4
+    </div>
+    <p class="caption">Figure 11 — Complete data flow from raw inputs to output visualisations.</p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     7. OUTPUTS
+════════════════════════════════════════════════════ -->
+<section id="sec-outputs">
+  <h2>7. Output Files</h2>
+
+  <div class="output-grid">
+    <div class="output-card">
+      <div class="icon">📊</div>
+      <div class="name">integrated_mission_dashboard.png</div>
+      <p>9-panel dark-theme dashboard (20×15 in, 150 dpi) covering all phases: Hohmann orbit, EKF convergence, PID error, distance timeline, LoS error, controller torques, predicted coordinates, pixel error bar chart, and mission phase summary.</p>
+    </div>
+    <div class="output-card">
+      <div class="icon">🖼️</div>
+      <div class="name">integrated_image_strip.png</div>
+      <p>2×6 grid of all 12 approach images annotated with ground-truth (green +) and predicted (red +) docking port crosshairs, plus image-centre reticle. Shows how the ISS docking port grows as range decreases.</p>
+    </div>
+    <div class="output-card">
+      <div class="icon">📈</div>
+      <div class="name">integrated_distance_timeline.png</div>
+      <p>Clean single-axis chart showing the full distance vs time profile: EKF phase (green) truncated at 491 m, ML phase (purple) starting at the same point, with vertical dashed handoff line and shaded ML region.</p>
+    </div>
+    <div class="output-card">
+      <div class="icon">🎞️</div>
+      <div class="name">integrated_docking_approach.gif</div>
+      <p>2 fps animated GIF cycling through all 12 approach images with live ground-truth/prediction crosshairs, LoS correction line, and a sidebar showing current distance and pixel error bars.</p>
+    </div>
+  </div>
+
+  <h3>Dashboard Panel Map</h3>
+  <table>
+    <thead>
+      <tr><th>Panel</th><th>Grid Position</th><th>Content</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>[0]</td><td>Row 0, Col 0</td><td>Hohmann transfer orbit — 2D trajectory of LEO, transfer arc, ISS orbit</td></tr>
+      <tr><td>[1]</td><td>Row 0, Col 1</td><td>EKF range convergence + covariance trace (secondary y-axis, log scale)</td></tr>
+      <tr><td>[2]</td><td>Row 0, Col 2</td><td>PID attitude error ‖e‖ vs time (semi-log), convergence threshold line</td></tr>
+      <tr><td>[3]</td><td>Row 1, Col 0</td><td>Full-mission distance timeline — EKF + ML continuous join at 491 m</td></tr>
+      <tr><td>[4]</td><td>Row 1, Col 1</td><td>ML LoS angular error vs distance (inverted x-axis: 491 m → 61 m)</td></tr>
+      <tr><td>[5]</td><td>Row 1, Col 2</td><td>Azimuth &amp; elevation controller torques vs step, ±0.05 clip lines</td></tr>
+      <tr><td>[6]</td><td>Row 2, Col 0</td><td>Predicted and GT x/y pixel coordinates vs step (4 series)</td></tr>
+      <tr><td>[7]</td><td>Row 2, Col 1</td><td>Pixel error (distance from image centre) per step — colour-coded bar chart</td></tr>
+      <tr><td>[8]</td><td>Row 2, Col 2</td><td>Mission phase summary — horizontal bar chart with completion status</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     8. CONSTANTS & PARAMETERS
+════════════════════════════════════════════════════ -->
+<section id="sec-constants">
+  <h2>8. Constants &amp; Parameters</h2>
+
+  <h3>Orbital / Physics</h3>
+  <table>
+    <thead><tr><th>Symbol</th><th>Name</th><th>Value</th><th>Unit</th></tr></thead>
+    <tbody>
+      <tr><td><code>MU</code></td><td>Earth gravitational parameter μ</td><td>398 600.4418</td><td>km³/s²</td></tr>
+      <tr><td><code>R_EARTH</code></td><td>Earth equatorial radius</td><td>6 378.137</td><td>km</td></tr>
+      <tr><td><code>EKF_R_ORB</code></td><td>ISS orbital radius</td><td>6 378.137 + 35 786 = 42 164.137</td><td>km</td></tr>
+      <tr><td><code>OMEGA_O</code></td><td>ISS mean motion n = √(μ/r³)</td><td>≈ 7.292 × 10⁻⁵</td><td>rad/s</td></tr>
+      <tr><td><code>DT_EKF</code></td><td>EKF integration timestep</td><td>1.0</td><td>s</td></tr>
+      <tr><td><code>DT_PID</code></td><td>PID integration timestep</td><td>0.01</td><td>s</td></tr>
+    </tbody>
+  </table>
+
+  <h3>EKF Noise Covariances</h3>
+  <table>
+    <thead><tr><th>Matrix</th><th>Description</th><th>Values</th></tr></thead>
+    <tbody>
+      <tr><td><code>Q_EKF</code></td><td>Process noise covariance (12×12 diagonal)</td><td>pos: 1e-6, vel: 1e-8, quat: 1e-7, rate: 1e-9</td></tr>
+      <tr><td><code>R_LAS</code></td><td>Laser sensor noise (3×3 diagonal)</td><td>ρ: 1e-6 km², α: 1e-10, β: 1e-10 rad²</td></tr>
+    </tbody>
+  </table>
+
+  <h3>PID Attitude Control</h3>
+  <table>
+    <thead><tr><th>Parameter</th><th>Symbol</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Inertia tensor</td><td><code>J</code></td><td>diag(0.01, 0.015, 0.02) kg·m²</td></tr>
+      <tr><td>Proportional gain</td><td><code>KP_AT</code></td><td>0.08</td></tr>
+      <tr><td>Derivative gain</td><td><code>KD_AT</code></td><td>0.8</td></tr>
+      <tr><td>Torque limit</td><td><code>TAU_MX</code></td><td>±0.5 N·m</td></tr>
+      <tr><td>Angular rate limit</td><td><code>OM_MX</code></td><td>±5.0 rad/s</td></tr>
+    </tbody>
+  </table>
+
+  <h3>ML / Camera / Controller</h3>
+  <table>
+    <thead><tr><th>Parameter</th><th>Value</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>ML_DIST_MAX</code></td><td>491 m</td><td>Distance at Phase 2 takeover (dataset max)</td></tr>
+      <tr><td><code>ML_DIST_MIN</code></td><td>61 m</td><td>Final approach distance (dataset min)</td></tr>
+      <tr><td><code>ML_N_STEPS</code></td><td>12</td><td>Number of sequential approach frames</td></tr>
+      <tr><td><code>IMG_SIZE_PX</code></td><td>512 px</td><td>Actual image resolution (confirmed)</td></tr>
+      <tr><td><code>IMG_SIZE_MODEL</code></td><td>224 px</td><td>ResNet50 input size</td></tr>
+      <tr><td><code>IMG_FOV_DEG</code></td><td>40°</td><td>Assumed camera field of view</td></tr>
+      <tr><td><code>FOV_PER_PX</code></td><td>40°/512 ≈ 0.0781°/px</td><td>Angular resolution per pixel</td></tr>
+      <tr><td><code>KP_PROX</code></td><td>2.5 × 10⁻³</td><td>Proportional gain (rad/pixel)</td></tr>
+      <tr><td><code>KD_PROX</code></td><td>8.0 × 10⁻³</td><td>Derivative gain (rad·s/pixel)</td></tr>
+      <tr><td><code>DT_PROX</code></td><td>1.0 s</td><td>Controller timestep</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════════════════════════════════════════════════
+     9. CODE STRUCTURE
+════════════════════════════════════════════════════ -->
+<section id="sec-codestructure">
+  <h2>9. Code Structure</h2>
+
+  <p>All integration code lives in <code>integrated_mission.py</code>,
+  organised into 10 clearly separated sections.</p>
+
+  <ul class="timeline">
+    <li data-n="1">
+      <h4>Section 1 — Dataset Loader</h4>
+      <p>
+        <code>load_dataset_csv()</code> — reads <code>data/train.csv</code> using
+        only stdlib <code>csv.DictReader</code>, no pandas.<br/>
+        <code>find_image_for_distance()</code> — argmin distance lookup.<br/>
+        <code>build_scaler_from_data()</code> — computes (x_min, x_max, y_min, y_max, d_min, d_max).<br/>
+        <code>denorm_simple()</code> — min-max inverse transform.
+      </p>
+    </li>
+    <li data-n="2">
+      <h4>Section 2 — Model Loader + Inference</h4>
+      <p>
+        <code>load_model_tf()</code> — wraps <code>tf.keras.models.load_model</code>,
+        returns <code>None</code> if TF unavailable.<br/>
+        <code>preprocess_for_model()</code> — BGR→RGB, resize to 224×224, ImageNet normalisation.<br/>
+        <code>run_inference()</code> — runs model or CSV fallback.
+      </p>
+    </li>
+    <li data-n="3">
+      <h4>Section 3 — Proximity Controller</h4>
+      <p>
+        <code>ProximityController</code> class — PD controller converting pixel offset
+        to angular attitude torques, with per-step history logging.
+      </p>
+    </li>
+    <li data-n="4">
+      <h4>Section 4 — Orbital Mechanics (Phase 1)</h4>
+      <p>
+        Compacted from <code>MiniProject.py</code>:<br/>
+        <code>compute_hohmann()</code>, <code>kepler_position()</code>, Stumpff functions
+        <code>_C()/_S()</code>, <code>lambert_uv()</code>, <code>lambert_min_energy()</code>,
+        <code>propagate_twobody()</code>, <code>cw_stm()</code>, <code>ekf_predict_step()</code>,
+        <code>h_las()</code>, <code>H_jac()</code>, <code>ekf_update_step()</code>,
+        <code>run_ekf_sim()</code>, <code>run_pid_sim()</code>.
+      </p>
+    </li>
+    <li data-n="5">
+      <h4>Section 5 — ML-Guided Close Approach</h4>
+      <p>
+        <code>run_ml_phase()</code> — the 12-step inference + control loop.
+        Returns <code>(steps_data, ctrl_hist)</code>.
+      </p>
+    </li>
+    <li data-n="6">
+      <h4>Section 6 — Image Strip Visualisation</h4>
+      <p>
+        <code>save_image_strip()</code> — annotated 2×6 grid of approach imagery.
+      </p>
+    </li>
+    <li data-n="7">
+      <h4>Section 7 — Master Dashboard</h4>
+      <p>
+        <code>save_mission_dashboard()</code> — 9-panel dark-theme dashboard with
+        <code>gridspec</code> layout (20×15 in, 150 dpi).
+      </p>
+    </li>
+    <li data-n="8">
+      <h4>Section 8 — Distance Timeline</h4>
+      <p>
+        <code>save_distance_timeline()</code> — clean dual-phase timeline with
+        continuous EKF→ML join at 491 m.
+      </p>
+    </li>
+    <li data-n="9">
+      <h4>Section 9 — Docking Animation</h4>
+      <p>
+        <code>save_docking_animation()</code> — <code>FuncAnimation</code> GIF at 2 fps
+        showing live image frames + sidebar metrics.
+      </p>
+    </li>
+    <li data-n="10">
+      <h4>Section 10 — Main Entry Point</h4>
+      <p>
+        <code>run_integrated_mission()</code> — orchestrates all phases, prints
+        mission summary table to console.
+      </p>
+    </li>
+  </ul>
+
+  <h3>Module Dependencies</h3>
+  <div class="diagram-box">
+    <div class="mermaid">
+graph LR
+    subgraph STDLIB["Python stdlib"]
+        csv; sys; warnings; ast; pathlib
+    end
+    subgraph NUMERIC["Numerical"]
+        numpy; scipy
+    end
+    subgraph VISION["Vision"]
+        cv2["opencv-python\ncv2"]
+    end
+    subgraph PLOT["Plotting"]
+        matplotlib; PIL["Pillow\n(GIF writer)"]
+    end
+    subgraph ML["ML (optional)"]
+        tf["tensorflow\ntf.keras"]
+    end
+    subgraph MAIN["integrated_mission.py"]
+        S1["Section 1\nDataset"]
+        S2["Section 2\nInference"]
+        S3["Section 3\nController"]
+        S4["Section 4\nOrbital GNC"]
+        S5["Section 5\nML Phase"]
+        S6_9["Sections 6-9\nVisualisation"]
+        S10["Section 10\nMain"]
+    end
+
+    csv --> S1; ast --> S1
+    numpy --> S1 & S2 & S3 & S4 & S5
+    scipy --> S4
+    cv2 --> S2 & S6_9
+    matplotlib --> S6_9
+    PIL --> S6_9
+    tf -->|"optional"| S2
+    S1 --> S5; S2 --> S5; S3 --> S5; S4 --> S10
+    S5 --> S6_9; S4 --> S6_9
+    S5 --> S10; S6_9 --> S10
+    </div>
+    <p class="caption">Figure 12 — Module and section dependency graph for integrated_mission.py.</p>
+  </div>
+
+  <h3>How to Run</h3>
+
+  <div class="callout">
+    <strong>Working directory:</strong> Must be
+    <code>c:\Users\admin\Desktop\Major Project\mitadtu-docking\</code>
+    so that relative paths <code>data/train.csv</code>, <code>data/train/</code>,
+    and <code>models/resnet_docking_best.h5</code> resolve correctly.
+  </div>
+
+  <pre><span class="cm"># Standard run (UTF-8 safe on Windows)</span>
+<span class="nm">$env</span><span class="kw">:</span>PYTHONIOENCODING=<span class="st">"utf-8"</span>
+<span class="kw">python</span> integrated_mission.py
+
+<span class="cm"># With real TensorFlow inference (install first):</span>
+pip install tensorflow
+<span class="kw">python</span> integrated_mission.py</pre>
+
+  <h3>Expected Console Output</h3>
+  <pre><span class="cm">============================================================
+  INTEGRATED MISSION
+  Orbital Rendezvous + ML-Guided Docking
+  LEO 400 km  ->  ISS orbit 35 786 km  ->  Docking
+============================================================
+
+[Phase 1] Orbital Mechanics
+  Step 1 — Hohmann Transfer
+    ΔV_total = 3.8540 km/s | TOF = 317.5 min
+  Step 2 — Lambert Rendezvous
+    Burn |v| = ...  km/s | TOF = ... min
+  Step 3 — EKF Navigation
+    Final range = 0.2497 km | tr(P) = ...
+  Step 4 — PID Attitude Control
+    Converged at t = 135.0 s
+
+[Phase 2] ML-Guided Close Approach
+  Loading dataset …
+    Dataset: 10000 images | dist range: 61–491 m | x: 198–332 px | y: 46–510 px
+  ML Phase — 12 approach steps (491m → 61m)
+    Step  1 | dist=  491m | pred=(... , ...) | LoS_err=...°
+    ...
+    Step 12 | dist=   61m | pred=(... , ...) | LoS_err=...°
+
+INTEGRATED MISSION SUMMARY
+============================================================
+  Phase 1 — Hohmann ΔV          : 3.8540 km/s
+  Phase 1 — Transfer time        : 317.5 min
+  Phase 1 — EKF final range      : 249.67 m
+  Phase 1 — PID convergence      : 135.0 s
+  Phase 2 — ML steps             : 12
+  Phase 2 — Final dist           : 61 m
+  Phase 2 — Final LoS error      : 1.482 deg
+  Phase 2 — Inference mode       : CSV fallback
+============================================================
+  MISSION COMPLETE - ALL PHASES SUCCESSFUL
+============================================================</pre>
+</section>
+
+</div><!-- .wrapper -->
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      background:      '#161b22',
+      primaryColor:    '#1e3a5f',
+      primaryTextColor:'#e6edf3',
+      primaryBorderColor:'#388bfd',
+      lineColor:       '#58a6ff',
+      secondaryColor:  '#2d1b69',
+      tertiaryColor:   '#0f2f1e',
+      nodeBorder:      '#30363d',
+      clusterBkg:      '#0d1117',
+      clusterBorder:   '#30363d',
+      titleColor:      '#e6edf3',
+      edgeLabelBackground:'#161b22',
+      fontFamily:      'ui-monospace, SFMono-Regular, Menlo, monospace'
+    },
+    flowchart: {
+      htmlLabels: true,
+      curve: 'basis',
+      useMaxWidth: true
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', () => {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true  },
+        { left: '$',  right: '$',  display: false }
+      ],
+      throwOnError: false
+    });
+  });
+</script>
+</body>
+</html>

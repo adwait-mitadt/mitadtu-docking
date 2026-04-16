@@ -621,7 +621,7 @@ def create_docking_datasets(train_df, val_df, image_folder, batch_size=32,
             img = tf.image.decode_jpeg(img, channels=3)
             img = tf.image.resize(img, target_size)
             return preprocess_image_pixels(img), labels / normalize_by
-        
+
         def augment_image(image, labels):
             # Simple, deterministic-free augmentations that keep labels unchanged.
             image = tf.image.random_flip_left_right(image)
